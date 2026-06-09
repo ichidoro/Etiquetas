@@ -48,4 +48,11 @@ export interface ElementPosition {
   x: number;  // mm from left edge of label
   y: number;  // mm from top edge of label
   h: number;  // height in mm (for resizable elements)
+  fontSize?: number; // font size in mm (only for 'name')
+}
+
+/** Saved layout that persists across products */
+export interface SavedLabelLayout {
+  positions: ElementPosition[];
+  selectedParts: { name: boolean; sku: boolean; ean13: boolean; dun14: boolean };
 }

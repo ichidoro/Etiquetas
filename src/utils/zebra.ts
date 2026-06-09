@@ -89,9 +89,9 @@ export function generateZpl(
   zpl += `~SD${format.darkness}\n`;
   zpl += `^PR${format.printSpeed}\n`;
 
-  // Font setup
-  const fontH = Math.round(3 * dpmm);
-  const fontW = Math.round(2.5 * dpmm);
+  // Font defaults (can be overridden per element)
+  const defaultFontHmm = 3;
+  const defaultFontWmm = 2.5;
 
   const orientation = format.orientation;
   const verticalGapDots = Math.round((format.verticalGap || 2) * dpmm);
@@ -116,11 +116,13 @@ export function generateZpl(
       const colOffsetX = marginLeftDots + col * (labelWidthDots + gapDots);
       const rowOffsetY = row * (labelHeightDots + verticalGapDots);
 
-      // Name — centered with ^FB field block
+      // Name — centered with ^FB field block, custom font size
       if (format.showName && itemName && posMap.has('name')) {
         const pos = posMap.get('name')!;
+        const fsMm = pos.fontSize || defaultFontHmm;
+        const fontH = Math.round(fsMm * dpmm);
+        const fontW = Math.round((fsMm * 0.8) * dpmm);
         const y = rowOffsetY + Math.round(pos.y * dpmm);
-        // Use ^FB for horizontal centering of text
         const fbWidth = usableWidth;
         zpl += `^FO${colOffsetX},${y}^FB${fbWidth},1,0,C,0^A0${orientation},${fontH},${fontW}^FD${itemName.substring(0, 30)}^FS\n`;
       }

@@ -164,7 +164,7 @@ export function DraggableLabelPreview({
         >
           <div
             className="text-black font-bold text-center leading-tight px-1 truncate w-full"
-            style={{ fontSize: `${Math.max(8, scale * 2)}px` }}
+            style={{ fontSize: `${mmToPx(pos.fontSize || 3)}px` }}
           >
             {product.item_name.substring(0, 30)}
           </div>
