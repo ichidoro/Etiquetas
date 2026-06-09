@@ -118,8 +118,8 @@ function DraggableTracePreview({
   const [dragging, setDragging] = useState<string | null>(null);
   const dragStartRef = useRef({ mouseY: 0, startY: 0 });
 
-  // Scale: fit label into ~360px wide
-  const scale = Math.min(360 / format.width, 280 / format.height);
+  // Scale: closer to real size (~1.5x) while staying usable
+  const scale = Math.min(220 / format.width, 170 / format.height, 7);
   const pW = format.width * scale;
   const pH = format.height * scale;
   const pML = format.marginLeft * scale;
