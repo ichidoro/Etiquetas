@@ -698,72 +698,72 @@ export default function App() {
                 {/* Table Content */}
                 <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
                   <div className="overflow-x-auto w-full">
-                    <table className="min-w-full divide-y divide-slate-200">
+                    <table className="min-w-[1400px] divide-y divide-slate-200">
                       <thead className="bg-slate-50">
                         <tr>
                           <th
                             scope="col"
-                            className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
+                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
                           >
                             SKU
                           </th>
                           <th
                             scope="col"
-                            className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
+                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
                           >
                             Item Name
                           </th>
                           <th
                             scope="col"
-                            className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
+                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
                           >
                             Línea de Negocio
                           </th>
                           <th
                             scope="col"
-                            className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
+                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
                           >
                             Familia
                           </th>
                           <th
                             scope="col"
-                            className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
+                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
                           >
                             EAN-13
                           </th>
                           <th
                             scope="col"
-                            className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
+                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
                           >
                             DUN-14
                           </th>
                           <th
                             scope="col"
-                            className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
+                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
                           >
                             ISP
                           </th>
                           <th
                             scope="col"
-                            className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
+                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
                           >
                             Marca
                           </th>
                           <th
                             scope="col"
-                            className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
+                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
                           >
                             Caducidad
                           </th>
                           <th
                             scope="col"
-                            className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
+                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
                           >
                             Estado
                           </th>
                           <th
                             scope="col"
-                            className="relative px-6 py-4 border-b-2 border-slate-200"
+                            className="relative px-3 py-3 border-b-2 border-slate-200"
                           >
                             <span className="sr-only">Acciones</span>
                           </th>
@@ -774,7 +774,7 @@ export default function App() {
                           <tr>
                             <td
                               colSpan={12}
-                              className="px-6 py-8 text-center text-slate-500 font-medium"
+                              className="px-3 py-8 text-center text-slate-500 font-medium"
                             >
                               <div className="flex justify-center items-center space-x-2">
                                 <div className="w-4 h-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin"></div>
@@ -786,7 +786,7 @@ export default function App() {
                           <tr>
                             <td
                               colSpan={12}
-                              className="px-6 py-8 text-center text-slate-500 font-medium bg-slate-50/50"
+                              className="px-3 py-8 text-center text-slate-500 font-medium bg-slate-50/50"
                             >
                               No se encontraron resultados. Intenta agregar un
                               nuevo producto o importar un CSV.
@@ -798,19 +798,19 @@ export default function App() {
                               key={p.id}
                               className="hover:bg-slate-50 transition-colors"
                             >
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-800">
+                              <td className="px-3 py-3 whitespace-nowrap text-sm font-semibold text-slate-800">
                                 {p.sku}
                               </td>
-                              <td className="px-6 py-4 text-sm text-slate-500">
+                              <td className="px-3 py-3 text-sm text-slate-500 max-w-[200px] truncate">
                                 {p.item_name}
                               </td>
-                              <td className="px-6 py-4 text-sm text-slate-500">
+                              <td className="px-3 py-3 text-sm text-slate-500 max-w-[120px] truncate">
                                 {p.business_line || "-"}
                               </td>
-                              <td className="px-6 py-4 text-sm text-slate-500">
+                              <td className="px-3 py-3 text-sm text-slate-500 max-w-[100px] truncate">
                                 {p.family || "-"}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
+                              <td className="px-3 py-3 whitespace-nowrap">
                                 {p.ean13 ? (
                                   <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 w-max">
                                     {p.ean13}
@@ -821,7 +821,7 @@ export default function App() {
                                   </span>
                                 )}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
+                              <td className="px-3 py-3 whitespace-nowrap">
                                 {p.dun14 ? (
                                   <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 w-max">
                                     {p.dun14}
@@ -832,21 +832,21 @@ export default function App() {
                                   </span>
                                 )}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono">
+                              <td className="px-3 py-3 whitespace-nowrap text-xs text-slate-500 font-mono">
                                 {p.isp || "-"}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-medium">
+                              <td className="px-3 py-3 whitespace-nowrap text-sm text-slate-500">
                                 {p.marca || "-"}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                                {p.caducidad !== undefined && p.caducidad !== null ? `${p.caducidad} días` : "-"}
+                              <td className="px-3 py-3 whitespace-nowrap text-sm text-slate-500">
+                                {p.caducidad !== undefined && p.caducidad !== null ? `${p.caducidad}d` : "-"}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              <td className="px-3 py-3 whitespace-nowrap text-sm">
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${p.activo !== false ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-800'}`}>
                                   {p.activo !== false ? 'Activo' : 'Inactivo'}
                                 </span>
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                              <td className="px-3 py-3 whitespace-nowrap text-right text-sm font-medium">
                                 <div className="flex items-center justify-end space-x-2">
                                   <button
                                     onClick={() => setPrintingProduct(p)}
