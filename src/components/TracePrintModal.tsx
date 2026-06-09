@@ -119,7 +119,7 @@ function DraggableTracePreview({
   const dragStartRef = useRef({ mouseY: 0, startY: 0 });
 
   // Scale: closer to real size (~1.5x) while staying usable
-  const scale = Math.min(220 / format.width, 170 / format.height, 7);
+  const scale = Math.min(220 / format.width, 170 / format.height, 5);
   const pW = format.width * scale;
   const pH = format.height * scale;
   const pML = format.marginLeft * scale;
