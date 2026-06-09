@@ -24,10 +24,15 @@ interface FreeLabelCreatorProps {
 }
 
 interface SavedDesign {
+  id?: number;
   name: string;
   elements: LabelElement[];
   formatId: string;
-  createdAt: string;
+  format_id?: string;
+  createdAt?: string;
+  created_at?: string;
+  updatedAt?: string;
+  updated_at?: string;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -334,8 +339,8 @@ function FreeLabelPreview({
                         key={el.id}
                         onMouseDown={isFirstLabel ? (e) => handleMouseDown(el.id, e) : undefined}
                         className={`absolute truncate select-none ${
-                          isFirstLabel ? `cursor-move border ${isSelected || isBeingDragged ? `${color.border} ${color.bg} ring-2 ring-offset-1 ring-blue-400/50` : "border-transparent hover:border-slate-300"}` : ""
-                        } ${isBeingDragged ? "!cursor-grabbing z-20 opacity-80 shadow-lg" : ""}`}
+                          isFirstLabel ? `cursor-move border ${isSelected || isBeingDragged ? `${color.border} ${color.bg}` : "border-transparent hover:border-slate-300"}` : ""
+                        }`}
                         style={{
                           left: xPx,
                           top: yPx,
@@ -386,10 +391,11 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
   const [copied, setCopied] = useState(false);
 
   // ── Template state
-  const [savedDesigns, setSavedDesigns] = useState<SavedDesign[]>(() => loadSavedDesigns());
+  const [savedDesigns, setSavedDesigns] = useState<SavedDesign[]>([]);
   const [saveName, setSaveName] = useState("");
   const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [showLoadDialog, setShowLoadDialog] = useState(false);
+  const [editingDesignId, setEditingDesignId] = useState<number | null>(null);
+  const [editingDesignName, setEditingDesignName] = useState("");
 
   // ── Drag reorder
   const [dragReorderIdx, setDragReorderIdx] = useState<number | null>(null);
@@ -412,6 +418,9 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
         }
       })
       .catch(() => {});
+
+    // Load designs from DB
+    fetchDesignsFromDb().then(setSavedDesigns);
   }, []);
 
   const handlePrinterChange = (name: string) => {
@@ -467,21 +476,44 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
     setDragReorderIdx(null);
   };
 
-  // ── Save / Load designs
-  const handleSaveDesign = () => {
+  // ── Save / Load / Edit designs (DB-backed)
+  const refreshDesigns = async () => {
+    const designs = await fetchDesignsFromDb();
+    setSavedDesigns(designs);
+  };
+
+  const handleSaveDesign = async () => {
     if (!saveName.trim()) return;
-    const design: SavedDesign = {
-      name: saveName.trim(),
-      elements,
-      formatId: activeFormatId,
-      createdAt: new Date().toISOString(),
-    };
-    const updated = [...savedDesigns.filter((d) => d.name !== design.name), design];
-    setSavedDesigns(updated);
-    persistDesigns(updated);
+    if (editingDesignId) {
+      // Update existing design
+      const ok = await updateDesignInDb(editingDesignId, {
+        name: saveName.trim(),
+        formatId: activeFormatId,
+        elements,
+      });
+      if (ok) {
+        onShowToast?.(`Diseño "${saveName.trim()}" actualizado`, "success");
+      } else {
+        onShowToast?.("Error al actualizar diseño", "error");
+      }
+    } else {
+      // Create new design
+      const created = await createDesignInDb({
+        name: saveName.trim(),
+        formatId: activeFormatId,
+        elements,
+      });
+      if (created) {
+        setEditingDesignId(created.id || null);
+        setEditingDesignName(created.name);
+        onShowToast?.(`Diseño "${created.name}" guardado`, "success");
+      } else {
+        onShowToast?.("Error al guardar diseño", "error");
+      }
+    }
     setSaveName("");
     setShowSaveDialog(false);
-    onShowToast?.(`Diseño "${design.name}" guardado`, "success");
+    await refreshDesigns();
   };
 
   const handleLoadDesign = (design: SavedDesign) => {
@@ -489,15 +521,46 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
     if (labelFormats.some((f) => f.id === design.formatId)) {
       setActiveFormatId(design.formatId);
     }
-    setShowLoadDialog(false);
-    onShowToast?.(`Diseño "${design.name}" cargado`, "success");
+    setEditingDesignId(design.id || null);
+    setEditingDesignName(design.name);
+    onShowToast?.(`Diseño "${design.name}" cargado para edición`, "success");
   };
 
-  const handleDeleteDesign = (name: string) => {
-    const updated = savedDesigns.filter((d) => d.name !== name);
-    setSavedDesigns(updated);
-    persistDesigns(updated);
-    onShowToast?.(`Diseño "${name}" eliminado`, "success");
+  const handleDeleteDesign = async (design: SavedDesign) => {
+    if (!design.id) return;
+    const ok = await deleteDesignFromDb(design.id);
+    if (ok) {
+      onShowToast?.(`Diseño "${design.name}" eliminado`, "success");
+      if (editingDesignId === design.id) {
+        setEditingDesignId(null);
+        setEditingDesignName("");
+      }
+      await refreshDesigns();
+    } else {
+      onShowToast?.("Error al eliminar diseño", "error");
+    }
+  };
+
+  const handleNewDesign = () => {
+    setElements([]);
+    setSelectedElementId(null);
+    setEditingDesignId(null);
+    setEditingDesignName("");
+  };
+
+  const handleQuickSave = async () => {
+    if (!editingDesignId || !editingDesignName) return;
+    const ok = await updateDesignInDb(editingDesignId, {
+      name: editingDesignName,
+      formatId: activeFormatId,
+      elements,
+    });
+    if (ok) {
+      onShowToast?.(`Diseño "${editingDesignName}" guardado`, "success");
+      await refreshDesigns();
+    } else {
+      onShowToast?.("Error al guardar", "error");
+    }
   };
 
   // ── ZPL
@@ -556,22 +619,39 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
           <h2 className="text-sm font-bold text-white tracking-wide">
             <span>Creador de Etiquetas Libre</span>
           </h2>
+          {editingDesignId && (
+            <span className="px-2 py-0.5 text-[9px] font-bold bg-blue-600/30 text-blue-300 rounded border border-blue-500/30">
+              Editando: {editingDesignName}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowSaveDialog(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors border border-blue-500"
-          >
-            <Save className="w-3 h-3" />
-            <span>Guardar</span>
-          </button>
-          <button
-            onClick={() => setShowLoadDialog(true)}
+            onClick={handleNewDesign}
             className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-slate-300 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors border border-slate-600"
           >
-            <FolderOpen className="w-3 h-3" />
-            <span>Cargar</span>
+            <Plus className="w-3 h-3" />
+            <span>Nuevo</span>
           </button>
+          {editingDesignId ? (
+            <button
+              onClick={handleQuickSave}
+              disabled={elements.length === 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors border border-emerald-500 disabled:opacity-50"
+            >
+              <Save className="w-3 h-3" />
+              <span>Guardar</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowSaveDialog(true)}
+              disabled={elements.length === 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors border border-blue-500 disabled:opacity-50"
+            >
+              <Save className="w-3 h-3" />
+              <span>Guardar como</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -726,61 +806,53 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
             })}
           </div>
 
-          {/* Saved designs list */}
-          <div className="border-t border-slate-200 flex-shrink-0 max-h-[240px] overflow-y-auto">
-            <div className="p-3">
-              <h3 className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center justify-between">
-                <span>Diseños guardados ({savedDesigns.length})</span>
-                {elements.length > 0 && (
-                  <button
-                    onClick={() => setShowSaveDialog(true)}
-                    className="flex items-center gap-1 px-2 py-0.5 text-[8px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded transition-colors border border-blue-200"
-                  >
-                    <Save className="w-2.5 h-2.5" />
-                    <span>Guardar</span>
-                  </button>
-                )}
-              </h3>
-              {savedDesigns.length === 0 ? (
-                <div className="text-center py-4 text-slate-300">
-                  <FolderOpen className="w-6 h-6 mx-auto mb-1 opacity-40" />
-                  <p className="text-[10px]">
-                    <span>Sin diseños guardados</span>
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {savedDesigns.map((design) => {
-                    const fmt = labelFormats.find((f) => f.id === design.formatId);
-                    return (
-                      <div
-                        key={design.name}
-                        className="flex items-center gap-2 px-2 py-2 rounded-lg border border-slate-100 hover:border-blue-300 hover:bg-blue-50/50 transition-all group cursor-pointer"
-                        onClick={() => handleLoadDesign(design)}
-                      >
-                        <FolderOpen className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-500 flex-shrink-0 transition-colors" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[11px] font-semibold text-slate-700 truncate group-hover:text-blue-700">{design.name}</div>
-                          <div className="text-[9px] text-slate-400 mt-0.5">
-                            <span>{design.elements.length} elem.</span>
-                            {fmt && (
-                              <>{" · "}<span>{fmt.name}</span></>
-                            )}
-                          </div>
+          {/* Saved Designs List */}
+          <div className="border-t border-slate-200 p-3 overflow-y-auto" style={{ maxHeight: '220px' }}>
+            <h3 className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+              Diseños guardados ({savedDesigns.length})
+            </h3>
+            {savedDesigns.length === 0 ? (
+              <div className="text-center py-4 text-slate-400">
+                <FolderOpen className="w-6 h-6 mx-auto mb-1 opacity-30" />
+                <p className="text-[10px]"><span>Sin diseños guardados</span></p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {savedDesigns.map((design) => {
+                  const fmt = labelFormats.find((f) => f.id === design.formatId);
+                  const isActive = editingDesignId === design.id;
+                  return (
+                    <div
+                      key={design.id || design.name}
+                      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg border transition-all cursor-pointer group ${
+                        isActive
+                          ? 'border-blue-300 bg-blue-50 shadow-sm'
+                          : 'border-slate-100 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                      onClick={() => handleLoadDesign(design)}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1">
+                          {isActive && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />}
+                          <span className="text-[11px] font-semibold text-slate-800 truncate">{design.name}</span>
                         </div>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDeleteDesign(design.name); }}
-                          className="p-0.5 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                          title="Eliminar diseño"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                        <div className="text-[9px] text-slate-400 mt-0.5">
+                          <span>{design.elements.length} elem</span>
+                          {fmt && <span> · {fmt.name}</span>}
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteDesign(design); }}
+                        className="p-0.5 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
@@ -939,7 +1011,7 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
             <div className="px-5 py-3 border-b border-slate-200 flex justify-between items-center bg-gradient-to-r from-slate-800 to-slate-900">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Save className="w-4 h-4 text-blue-400" />
-                <span>Guardar diseño</span>
+                <span>{editingDesignId ? "Guardar como nuevo" : "Guardar diseño"}</span>
               </h3>
               <button onClick={() => setShowSaveDialog(false)} className="text-slate-400 hover:text-white transition-colors p-1">
                 <X className="w-4 h-4" />
@@ -978,70 +1050,6 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
         </div>
       )}
 
-      {/* ── Load Dialog ── */}
-      {showLoadDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden max-h-[70vh] flex flex-col">
-            <div className="px-5 py-3 border-b border-slate-200 flex justify-between items-center bg-gradient-to-r from-slate-800 to-slate-900 flex-shrink-0">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <FolderOpen className="w-4 h-4 text-blue-400" />
-                <span>Cargar diseño</span>
-              </h3>
-              <button onClick={() => setShowLoadDialog(false)} className="text-slate-400 hover:text-white transition-colors p-1">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              {savedDesigns.length === 0 ? (
-                <div className="text-center py-8 text-slate-400">
-                  <FolderOpen className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm"><span>No hay diseños guardados</span></p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {savedDesigns.map((design) => {
-                    const fmt = labelFormats.find((f) => f.id === design.formatId);
-                    return (
-                      <div
-                        key={design.name}
-                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all group"
-                      >
-                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleLoadDesign(design)}>
-                          <div className="text-sm font-semibold text-slate-800 truncate">{design.name}</div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            <span>{design.elements.length} elementos</span>
-                            {fmt && (
-                              <>{" · "}<span>{fmt.name}</span></>
-                            )}
-                            {" · "}
-                            <span>{new Date(design.createdAt).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleDeleteDesign(design.name)}
-                          className="p-1 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex-shrink-0">
-              <button
-                onClick={() => setShowLoadDialog(false)}
-                className="w-full px-4 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
-              >
-                <span>Cerrar</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── Footer ── */}
       <div className="px-4 py-2 border-t border-slate-200 bg-white flex justify-between items-center flex-shrink-0">
         <div className="text-[10px] text-slate-400">
@@ -1049,8 +1057,13 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
             <span>{currentFormat.width}×{currentFormat.height}mm · {currentFormat.dpi} DPI · {currentFormat.labelsPerRow}col · {elements.length} elementos</span>
           )}
         </div>
-        <div className="text-[10px] text-slate-400">
-          <span>{savedDesigns.length} diseños guardados</span>
+        <div className="text-[10px] text-slate-400 flex items-center gap-2">
+          <span>{savedDesigns.length} diseños en BD</span>
+          {editingDesignId && (
+            <span className="px-1.5 py-0.5 bg-blue-100 text-blue-600 rounded text-[9px] font-semibold">
+              Editando #{editingDesignId}
+            </span>
+          )}
         </div>
       </div>
     </div>

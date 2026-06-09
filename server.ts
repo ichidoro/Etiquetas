@@ -138,6 +138,18 @@ async function initDb() {
     await db.execute("ALTER TABLE empleados ADD COLUMN codigo TEXT;");
   } catch {}
 
+  // Table: label_designs
+  try {
+    await db.execute(`CREATE TABLE IF NOT EXISTS label_designs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      format_id TEXT NOT NULL,
+      elements TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`);
+  } catch {}
+
   // Seed label formats only if empty (preserves cloud data)
   try {
     const formatsResult = await db.execute(
@@ -708,6 +720,62 @@ app.delete('/api/empleados/:id', async (req, res) => {
   const { id } = req.params;
   try {
     await db.execute({ sql: 'DELETE FROM empleados WHERE id = ?', args: [Number(id)] });
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── Label Designs CRUD ──────────────────────────────────────────────────────
+app.get('/api/label-designs', async (_req, res) => {
+  try {
+    const result = await db.execute('SELECT * FROM label_designs ORDER BY updated_at DESC');
+    const rows = result.rows.map((r: any) => ({
+      ...r,
+      elements: JSON.parse(r.elements || '[]'),
+    }));
+    res.json(rows);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/label-designs', async (req, res) => {
+  const { name, format_id, elements } = req.body;
+  try {
+    const now = new Date().toISOString();
+    const result = await db.execute({
+      sql: 'INSERT INTO label_designs (name, format_id, elements, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+      args: [name, format_id, JSON.stringify(elements), now, now],
+    });
+    res.status(201).json({
+      id: result.lastInsertRowid ? Number(result.lastInsertRowid) : 0,
+      name, format_id, elements, created_at: now, updated_at: now,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/label-designs/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, format_id, elements } = req.body;
+  try {
+    const now = new Date().toISOString();
+    await db.execute({
+      sql: 'UPDATE label_designs SET name = ?, format_id = ?, elements = ?, updated_at = ? WHERE id = ?',
+      args: [name, format_id, JSON.stringify(elements), now, Number(id)],
+    });
+    res.json({ id: Number(id), name, format_id, elements, updated_at: now });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/label-designs/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.execute({ sql: 'DELETE FROM label_designs WHERE id = ?', args: [Number(id)] });
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
