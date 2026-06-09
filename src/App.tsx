@@ -14,10 +14,12 @@ import {
   FileText,
   Settings,
   Filter,
+  ClipboardList,
 } from "lucide-react";
 import { Product, LabelFormat } from "./types";
 import { ProductForm } from "./components/ProductForm";
 import { PrintModal } from "./components/PrintModal";
+import { TracePrintModal } from "./components/TracePrintModal";
 import { LabelPreview } from "./components/LabelPreview";
 
 export default function App() {
@@ -174,6 +176,7 @@ export default function App() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>();
   const [printingProduct, setPrintingProduct] = useState<Product | undefined>();
+  const [tracePrintingProduct, setTracePrintingProduct] = useState<Product | undefined>();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -306,6 +309,7 @@ export default function App() {
             .toString()
             .trim(),
           marca: (r["MARCA"] || "").toString().trim(),
+          isp: (r["ISP"] || r["CODIGOISP"] || "").toString().trim(),
           caducidad: r["CADUCIDAD"] ? parseInt(r["CADUCIDAD"].toString().trim(), 10) : undefined,
           activo: r["ACTIVO"] !== undefined ? (String(r["ACTIVO"]).toUpperCase() === 'NO' || String(r["ACTIVO"]).toUpperCase() === 'FALSO' || String(r["ACTIVO"]) === '0' || String(r["ACTIVO"]).toUpperCase() === 'INACTIVO' ? false : true) : true,
           business_line: (r["LINEADENEGOCIO"] || r["LINEA"] || r["NEGOCIO"] || "").toString().trim(),
@@ -737,6 +741,12 @@ export default function App() {
                             scope="col"
                             className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
                           >
+                            ISP
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
+                          >
                             Marca
                           </th>
                           <th
@@ -763,7 +773,7 @@ export default function App() {
                         {loading ? (
                           <tr>
                             <td
-                              colSpan={10}
+                              colSpan={12}
                               className="px-6 py-8 text-center text-slate-500 font-medium"
                             >
                               <div className="flex justify-center items-center space-x-2">
@@ -775,7 +785,7 @@ export default function App() {
                         ) : filteredProducts.length === 0 ? (
                           <tr>
                             <td
-                              colSpan={10}
+                              colSpan={12}
                               className="px-6 py-8 text-center text-slate-500 font-medium bg-slate-50/50"
                             >
                               No se encontraron resultados. Intenta agregar un
@@ -822,6 +832,9 @@ export default function App() {
                                   </span>
                                 )}
                               </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono">
+                                {p.isp || "-"}
+                              </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-medium">
                                 {p.marca || "-"}
                               </td>
@@ -841,6 +854,13 @@ export default function App() {
                                     className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                                   >
                                     <Printer className="w-5 h-5" />
+                                  </button>
+                                  <button
+                                    onClick={() => setTracePrintingProduct(p)}
+                                    title="Imprimir Trazabilidad"
+                                    className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors"
+                                  >
+                                    <ClipboardList className="w-5 h-5" />
                                   </button>
                                   <button
                                     onClick={() => {
@@ -1390,6 +1410,16 @@ export default function App() {
           labelFormats={labelFormats}
           activeFormatId={activeFormatId}
           onClose={() => setPrintingProduct(undefined)}
+          onShowToast={showToast}
+        />
+      )}
+
+      {tracePrintingProduct && (
+        <TracePrintModal
+          product={tracePrintingProduct}
+          labelFormats={labelFormats}
+          activeFormatId={activeFormatId}
+          onClose={() => setTracePrintingProduct(undefined)}
           onShowToast={showToast}
         />
       )}

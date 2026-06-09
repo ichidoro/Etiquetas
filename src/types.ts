@@ -7,6 +7,7 @@ export interface Product {
   ean13?: string;
   dun14?: string;
   marca?: string;
+  isp?: string;
   caducidad?: number;
   activo?: boolean;
 }

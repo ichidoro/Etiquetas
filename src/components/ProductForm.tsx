@@ -16,6 +16,7 @@ export function ProductForm({ product, onSave, onClose }: ProductFormProps) {
     family: '',
     ean13: '',
     dun14: '',
+    isp: '',
     marca: '',
     caducidad: '',
     activo: true
@@ -32,6 +33,7 @@ export function ProductForm({ product, onSave, onClose }: ProductFormProps) {
         family: product.family || '',
         ean13: product.ean13 || '',
         dun14: product.dun14 || '',
+        isp: product.isp || '',
         marca: product.marca || '',
         caducidad: product.caducidad ? product.caducidad.toString() : '',
         activo: product.activo ?? true
@@ -158,15 +160,27 @@ export function ProductForm({ product, onSave, onClose }: ProductFormProps) {
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Marca</label>
-            <input 
-              name="marca"
-              value={formData.marca}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-              placeholder="Opcional"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">ISP</label>
+              <input 
+                name="isp"
+                value={formData.isp}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm font-mono uppercase"
+                placeholder="Código alfanumérico"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Marca</label>
+              <input 
+                name="marca"
+                value={formData.marca}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                placeholder="Opcional"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4 items-end">

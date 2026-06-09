@@ -119,6 +119,9 @@ async function initDb() {
   try {
     await db.execute("ALTER TABLE products ADD COLUMN activo INTEGER DEFAULT 1;");
   } catch {}
+  try {
+    await db.execute("ALTER TABLE products ADD COLUMN isp TEXT;");
+  } catch {}
 
   // Seed label formats only if empty (preserves cloud data)
   try {
@@ -172,12 +175,12 @@ app.get("/api/products", async (req, res) => {
 });
 
 app.post("/api/products", async (req, res) => {
-  const { sku, item_name, business_line, family, ean13, dun14, marca, caducidad, activo } = req.body;
+  const { sku, item_name, business_line, family, ean13, dun14, marca, caducidad, activo, isp } = req.body;
   try {
     const isActivo = activo !== undefined ? (activo ? 1 : 0) : 1;
     const result = await db.execute({
-      sql: "INSERT INTO products (sku, item_name, business_line, family, ean13, dun14, marca, caducidad, activo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      args: [sku, item_name, business_line || null, family || null, ean13 || null, dun14 || null, marca || null, caducidad || null, isActivo],
+      sql: "INSERT INTO products (sku, item_name, business_line, family, ean13, dun14, marca, caducidad, activo, isp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      args: [sku, item_name, business_line || null, family || null, ean13 || null, dun14 || null, marca || null, caducidad || null, isActivo, isp || null],
     });
     res.status(201).json({
       id: result.lastInsertRowid ? Number(result.lastInsertRowid) : 0,
@@ -190,6 +193,7 @@ app.post("/api/products", async (req, res) => {
       marca,
       caducidad,
       activo: isActivo === 1,
+      isp,
     });
   } catch (error: any) {
     console.error("POST product err:", error);
@@ -203,14 +207,14 @@ app.post("/api/products", async (req, res) => {
 
 app.put("/api/products/:id", async (req, res) => {
   const { id } = req.params;
-  const { sku, item_name, business_line, family, ean13, dun14, marca, caducidad, activo } = req.body;
+  const { sku, item_name, business_line, family, ean13, dun14, marca, caducidad, activo, isp } = req.body;
   try {
     const isActivo = activo !== undefined ? (activo ? 1 : 0) : 1;
     await db.execute({
-      sql: "UPDATE products SET sku = ?, item_name = ?, business_line = ?, family = ?, ean13 = ?, dun14 = ?, marca = ?, caducidad = ?, activo = ? WHERE id = ?",
-      args: [sku, item_name, business_line || null, family || null, ean13 || null, dun14 || null, marca || null, caducidad || null, isActivo, id],
+      sql: "UPDATE products SET sku = ?, item_name = ?, business_line = ?, family = ?, ean13 = ?, dun14 = ?, marca = ?, caducidad = ?, activo = ?, isp = ? WHERE id = ?",
+      args: [sku, item_name, business_line || null, family || null, ean13 || null, dun14 || null, marca || null, caducidad || null, isActivo, isp || null, id],
     });
-    res.json({ id, sku, item_name, business_line, family, ean13, dun14, marca, caducidad, activo: isActivo === 1 });
+    res.json({ id, sku, item_name, business_line, family, ean13, dun14, marca, caducidad, activo: isActivo === 1, isp });
   } catch (error: any) {
     console.error(error);
     res
@@ -241,7 +245,7 @@ app.post("/api/products/batch", async (req, res) => {
 
   try {
     const statements = products.map((p: any) => ({
-      sql: "INSERT INTO products (sku, item_name, business_line, family, ean13, dun14, marca, caducidad, activo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(sku) DO UPDATE SET item_name=excluded.item_name, business_line=excluded.business_line, family=excluded.family, ean13=excluded.ean13, dun14=excluded.dun14, marca=excluded.marca, caducidad=excluded.caducidad, activo=excluded.activo",
+      sql: "INSERT INTO products (sku, item_name, business_line, family, ean13, dun14, marca, caducidad, activo, isp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(sku) DO UPDATE SET item_name=excluded.item_name, business_line=excluded.business_line, family=excluded.family, ean13=excluded.ean13, dun14=excluded.dun14, marca=excluded.marca, caducidad=excluded.caducidad, activo=excluded.activo, isp=excluded.isp",
       args: [
         p.sku,
         p.item_name,
@@ -252,6 +256,7 @@ app.post("/api/products/batch", async (req, res) => {
         p.marca || null,
         p.caducidad || null,
         p.activo !== undefined ? (p.activo ? 1 : 0) : 1,
+        p.isp || null,
       ],
     }));
 
