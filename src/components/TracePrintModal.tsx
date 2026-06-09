@@ -118,16 +118,30 @@ function DraggableTracePreview({
   const [dragging, setDragging] = useState<string | null>(null);
   const dragStartRef = useRef({ mouseY: 0, startY: 0 });
 
-  // Scale: closer to real size (~1.5x) while staying usable
-  const scale = Math.min(220 / format.width, 170 / format.height, 5);
-  const pW = format.width * scale;
-  const pH = format.height * scale;
+  const cols = format.labelsPerRow || 1;
+  const rows = format.labelsPerColumn || 1;
+  const gapMm = format.horizontalGap || 2;
+  const vGapMm = format.verticalGap || 2;
+
+  // Total physical size of the full print area
+  const totalWidthMm = format.width * cols + gapMm * Math.max(0, cols - 1);
+  const totalHeightMm = format.height * rows + vGapMm * Math.max(0, rows - 1);
+
+  // Scale to fit available preview space (max ~480px wide, ~320px tall)
+  const scale = Math.min(480 / totalWidthMm, 320 / totalHeightMm);
+  const singleW = format.width * scale;
+  const singleH = format.height * scale;
+  const gapPx = gapMm * scale;
+  const vGapPx = vGapMm * scale;
+  const gridW = singleW * cols + gapPx * Math.max(0, cols - 1);
+  const gridH = singleH * rows + vGapPx * Math.max(0, rows - 1);
+
   const pML = format.marginLeft * scale;
   const pMR = format.marginRight * scale;
   const pMT = format.marginTop * scale;
   const pMB = format.marginBottom * scale;
-  const usableW = pW - pML - pMR;
-  const usableH = pH - pMT - pMB;
+  const usableW = singleW - pML - pMR;
+  const usableH = singleH - pMT - pMB;
 
   const handleMouseDown = useCallback((id: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -160,56 +174,67 @@ function DraggableTracePreview({
     { id: "name", y: positions.nameY, fontSize: nameFontMm, text: productName, color: "amber" },
   ];
 
+  // Zebra ^A0N font: cell height includes internal leading. Visible glyph is ~70% of cell height.
+  const zebraFontRatio = 0.70;
+
   return (
     <div className="flex flex-col items-center gap-2">
-      <div className="relative bg-white border-2 border-slate-300 rounded shadow-lg cursor-crosshair" ref={containerRef}
-        style={{ width: pW, height: pH }}>
-        {/* Grid dots */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
-          <defs>
-            <pattern id="traceGrid" width={2 * scale} height={2 * scale} patternUnits="userSpaceOnUse">
-              <circle cx="1" cy="1" r="0.5" fill="#94a3b8" />
-            </pattern>
-          </defs>
-          <rect x={pML} y={pMT} width={usableW} height={usableH} fill="url(#traceGrid)" />
-        </svg>
-        {/* Margin box */}
-        <div className="absolute border border-dashed border-blue-200 pointer-events-none"
-          style={{ left: pML, top: pMT, width: usableW, height: usableH }} />
+      {/* Full grid view */}
+      <div className="relative bg-slate-100 rounded-lg p-3 border border-slate-200"
+        style={{ width: gridW + 24, height: gridH + 24 }}>
+        <div className="relative" style={{ width: gridW, height: gridH }} ref={containerRef}>
+          {Array.from({ length: rows }).map((_, row) =>
+            Array.from({ length: cols }).map((_, col) => {
+              const offsetX = col * (singleW + gapPx);
+              const offsetY = row * (singleH + vGapPx);
+              const isFirstLabel = row === 0 && col === 0;
 
-        {/* Draggable elements */}
-        {elements.map((el) => {
-          const fontPx = el.fontSize * scale;
-          const yPx = el.y * scale;
-          const isActive = dragging === el.id;
-          const borderColor = el.color === "blue" ? "border-blue-400" : el.color === "red" ? "border-red-400" : "border-amber-400";
-          const bgColor = isActive
-            ? (el.color === "blue" ? "bg-blue-50" : el.color === "red" ? "bg-red-50" : "bg-amber-50")
-            : "bg-transparent";
+              return (
+                <div key={`${row}-${col}`}
+                  className={`absolute bg-white border ${isFirstLabel ? 'border-blue-300 shadow-md' : 'border-slate-300'} rounded-sm overflow-hidden`}
+                  style={{ left: offsetX, top: offsetY, width: singleW, height: singleH }}>
+                  {/* Margin guides only on first label */}
+                  {isFirstLabel && (
+                    <div className="absolute border border-dashed border-blue-200/50 pointer-events-none"
+                      style={{ left: pML, top: pMT, width: usableW, height: usableH }} />
+                  )}
 
-          return (
-            <div
-              key={el.id}
-              onMouseDown={(e) => handleMouseDown(el.id, e)}
-              className={`absolute text-center font-bold text-slate-800 truncate select-none transition-colors border border-transparent hover:${borderColor} ${isActive ? borderColor + " " + bgColor : ""}`}
-              style={{
-                left: pML,
-                top: yPx,
-                width: usableW,
-                fontSize: Math.max(8, fontPx),
-                lineHeight: `${Math.max(8, fontPx)}px`,
-                cursor: "ns-resize",
-              }}
-              title={`Arrastra verticalmente: ${el.id.toUpperCase()}`}
-            >
-              {el.text}
-            </div>
-          );
-        })}
+                  {/* Text elements */}
+                  {elements.map((el) => {
+                    const fontPx = el.fontSize * scale * zebraFontRatio;
+                    const yPx = el.y * scale;
+                    const isActive = dragging === el.id;
+                    const borderCls = el.color === "blue" ? "border-blue-400" : el.color === "red" ? "border-red-400" : "border-amber-400";
+                    const bgCls = isActive
+                      ? (el.color === "blue" ? "bg-blue-50" : el.color === "red" ? "bg-red-50" : "bg-amber-50")
+                      : "";
+
+                    return (
+                      <div key={el.id}
+                        onMouseDown={isFirstLabel ? (e) => handleMouseDown(el.id, e) : undefined}
+                        className={`absolute text-center font-bold text-slate-800 truncate select-none ${
+                          isFirstLabel ? `cursor-ns-resize border border-transparent hover:${borderCls} ${isActive ? borderCls + ' ' + bgCls : ''}` : ''
+                        }`}
+                        style={{
+                          left: pML, top: yPx, width: usableW,
+                          fontSize: Math.max(6, fontPx),
+                          lineHeight: `${Math.max(6, fontPx)}px`,
+                        }}
+                        title={isFirstLabel ? `Arrastra: ${el.id.toUpperCase()}` : undefined}
+                      >
+                        {el.text}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
       <div className="text-[9px] text-slate-400 flex items-center gap-1">
         <Move className="w-3 h-3" />
-        <span>Arrastra los textos para reposicionar</span>
+        <span>Arrastra los textos en la 1ª etiqueta — se replica en todas</span>
       </div>
     </div>
   );
