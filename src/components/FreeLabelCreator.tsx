@@ -47,14 +47,52 @@ function saveDefaultPrinter(name: string) {
   try { localStorage.setItem(PRINTER_STORAGE_KEY, name); } catch {}
 }
 
-function loadSavedDesigns(): SavedDesign[] {
+// ─── DB API helpers ──────────────────────────────────────────────────────────
+async function fetchDesignsFromDb(): Promise<SavedDesign[]> {
   try {
-    const raw = localStorage.getItem(DESIGNS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const res = await fetch('/api/label-designs');
+    if (!res.ok) return [];
+    const rows = await res.json();
+    return rows.map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      elements: r.elements || [],
+      formatId: r.format_id || r.formatId,
+      createdAt: r.created_at || r.createdAt,
+      updatedAt: r.updated_at || r.updatedAt,
+    }));
   } catch { return []; }
 }
-function persistDesigns(designs: SavedDesign[]) {
-  try { localStorage.setItem(DESIGNS_STORAGE_KEY, JSON.stringify(designs)); } catch {}
+
+async function createDesignInDb(design: { name: string; formatId: string; elements: LabelElement[] }): Promise<SavedDesign | null> {
+  try {
+    const res = await fetch('/api/label-designs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: design.name, format_id: design.formatId, elements: design.elements }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return { id: data.id, name: data.name, elements: data.elements, formatId: data.format_id, createdAt: data.created_at, updatedAt: data.updated_at };
+  } catch { return null; }
+}
+
+async function updateDesignInDb(id: number, design: { name: string; formatId: string; elements: LabelElement[] }): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/label-designs/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: design.name, format_id: design.formatId, elements: design.elements }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+async function deleteDesignFromDb(id: number): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/label-designs/${id}`, { method: 'DELETE' });
+    return res.ok;
+  } catch { return false; }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
