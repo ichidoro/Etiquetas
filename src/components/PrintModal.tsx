@@ -285,7 +285,7 @@ export function PrintModal({
                         <div className={`w-5 h-5 rounded flex-shrink-0 flex items-center justify-center text-xs font-bold transition-colors ${
                           checked ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-400'
                         }`}>
-                          {checked ? '✓' : ''}
+                          <span>{checked ? '✓' : '\u00A0'}</span>
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide leading-none mb-0.5">
@@ -330,28 +330,32 @@ export function PrintModal({
 
               {/* Save / Reset buttons */}
               <div className="mt-auto pt-3 space-y-1.5">
-                {isCustomPositions && (
-                  <>
-                    <button
-                      onClick={handleSaveLayout}
-                      className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-semibold rounded-lg transition-colors ${
-                        layoutSaved
-                          ? 'text-emerald-600 bg-emerald-50 border border-emerald-200'
-                          : 'text-white bg-blue-600 hover:bg-blue-500 border border-blue-500 shadow-sm'
-                      }`}
-                    >
-                      {layoutSaved ? <Check className="w-3 h-3" /> : <Save className="w-3 h-3" />}
-                      {layoutSaved ? 'Guardado ✓' : 'Guardar diseño'}
-                    </button>
-                    <button
-                      onClick={handleResetPositions}
-                      className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[10px] font-medium text-slate-500 hover:text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-colors"
-                    >
-                      <RotateCcw className="w-3 h-3" />
-                      Restablecer
-                    </button>
-                  </>
-                )}
+                  {isCustomPositions && (
+                    <div className="space-y-1.5">
+                      <button
+                        onClick={handleSaveLayout}
+                        className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-semibold rounded-lg transition-colors ${
+                          layoutSaved
+                            ? 'text-emerald-600 bg-emerald-50 border border-emerald-200'
+                            : 'text-white bg-blue-600 hover:bg-blue-500 border border-blue-500 shadow-sm'
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          {layoutSaved
+                            ? <><Check className="w-3 h-3" /><span>Guardado ✓</span></>
+                            : <><Save className="w-3 h-3" /><span>Guardar diseño</span></>
+                          }
+                        </span>
+                      </button>
+                      <button
+                        onClick={handleResetPositions}
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[10px] font-medium text-slate-500 hover:text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-colors"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Restablecer</span>
+                      </button>
+                    </div>
+                  )}
               </div>
             </div>
 
@@ -431,7 +435,7 @@ export function PrintModal({
                   className="w-full flex items-center justify-center px-4 py-2.5 outline-none rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-colors border border-emerald-500 shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Printer className="w-4 h-4 mr-2" />
-                  {usbPrinting ? 'Enviando...' : '🖨️ Imprimir Etiqueta'}
+                  <span>{usbPrinting ? 'Enviando...' : '🖨️ Imprimir Etiqueta'}</span>
                 </button>
                 <button
                   onClick={handleDownloadZPL}
@@ -452,7 +456,10 @@ export function PrintModal({
                   className="absolute top-1 right-1 p-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
                   title="Copiar ZPL"
                 >
-                  {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                  {copied
+                    ? <Check className="w-3 h-3 text-green-400" />
+                    : <Copy className="w-3 h-3" />
+                  }
                 </button>
               </div>
               {copied && <p className="text-[10px] text-green-400 mt-0.5 text-right font-medium">¡Copiado!</p>}
