@@ -123,6 +123,15 @@ async function initDb() {
     await db.execute("ALTER TABLE products ADD COLUMN isp TEXT;");
   } catch {}
 
+  try {
+    await db.execute(`CREATE TABLE IF NOT EXISTS empleados (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nombre TEXT NOT NULL,
+      linea_proceso TEXT,
+      labor TEXT
+    )`);
+  } catch {}
+
   // Seed label formats only if empty (preserves cloud data)
   try {
     const formatsResult = await db.execute(
@@ -639,6 +648,58 @@ app.post('/api/print/usb', async (req, res) => {
       res.status(500).json({ error: `Impresión fallida: ${output}` });
     }
   });
+});
+
+// ─── Empleados CRUD ─────────────────────────────────────────────────────────
+app.get('/api/empleados', async (_req, res) => {
+  try {
+    const result = await db.execute('SELECT * FROM empleados ORDER BY nombre');
+    res.json(result.rows);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/empleados', async (req, res) => {
+  const { nombre, linea_proceso, labor } = req.body;
+  try {
+    const result = await db.execute({
+      sql: 'INSERT INTO empleados (nombre, linea_proceso, labor) VALUES (?, ?, ?)',
+      args: [nombre, linea_proceso || null, labor || null],
+    });
+    res.status(201).json({
+      id: result.lastInsertRowid ? Number(result.lastInsertRowid) : 0,
+      nombre,
+      linea_proceso,
+      labor,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/empleados/:id', async (req, res) => {
+  const { id } = req.params;
+  const { nombre, linea_proceso, labor } = req.body;
+  try {
+    await db.execute({
+      sql: 'UPDATE empleados SET nombre = ?, linea_proceso = ?, labor = ? WHERE id = ?',
+      args: [nombre, linea_proceso || null, labor || null, Number(id)],
+    });
+    res.json({ id: Number(id), nombre, linea_proceso, labor });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/empleados/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.execute({ sql: 'DELETE FROM empleados WHERE id = ?', args: [Number(id)] });
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 async function startServer() {

@@ -15,12 +15,14 @@ import {
   Settings,
   Filter,
   ClipboardList,
+  Users,
 } from "lucide-react";
 import { Product, LabelFormat } from "./types";
 import { ProductForm } from "./components/ProductForm";
 import { PrintModal } from "./components/PrintModal";
 import { TracePrintModal } from "./components/TracePrintModal";
 import { LabelPreview } from "./components/LabelPreview";
+import { EmpleadosManager } from "./components/EmpleadosManager";
 
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -40,6 +42,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState<
     "maestro" | "formatos" | "historial" | "configuracion"
   >("maestro");
+  const [configTab, setConfigTab] = useState<"turso" | "operadores">("operadores");
   const [dbStatus, setDbStatus] = useState<{ dbType: string; dbUrl: string }>({
     dbType: "local-sqlite",
     dbUrl: "file:local.db",
@@ -477,7 +480,7 @@ export default function App() {
             className={`px-6 py-3 flex items-center gap-3 cursor-pointer text-sm font-medium transition-colors ${currentView === "configuracion" ? "bg-blue-600 text-white" : "hover:bg-slate-800 text-slate-300"}`}
           >
             <Settings className="w-4 h-4" />
-            Configuración Turso
+            Configuración
           </div>
         </nav>
 
@@ -501,13 +504,13 @@ export default function App() {
               {currentView === "maestro" ? "Maestro de Productos"
                 : currentView === "formatos" ? "Formatos de Etiqueta"
                 : currentView === "historial" ? "Historial de Impresión"
-                : "Configuración de Base de Datos"}
+                : "Configuración"}
             </h1>
             <p className="text-xs text-slate-500">
               {currentView === "maestro" ? "Gestión de SKU y Códigos GS1"
                 : currentView === "formatos" ? "Configuración de etiquetas ZPL"
                 : currentView === "historial" ? "Registro de impresiones enviadas"
-                : "Estado de conexión a Turso"}
+                : "Configuración del sistema"}
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -1351,46 +1354,82 @@ export default function App() {
             )}
 
             {currentView === "configuracion" && (
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 sm:p-8">
-                <h2 className="text-xl font-bold text-slate-800 mb-4">
-                  Configuración de Base de Datos
-                </h2>
-                <div className="space-y-6">
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                    <h3 className="text-sm font-semibold text-slate-800 mb-2">
-                      Estado de la Conexión Actual
-                    </h3>
-                    <div className="flex items-center space-x-2 text-sm text-slate-600 mb-1">
-                      <span className="font-medium w-32">Tipo db:</span>
-                      <span>
-                        {dbStatus.dbType === "turso-cloud"
-                          ? "Base de Datos Cloud (Turso/libSQL)"
-                          : "SQLite Local (En Memoria/Archivo)"}
-                      </span>
-                    </div>
-                    <div className="flex text-sm text-slate-600">
-                      <span className="font-medium w-32 shrink-0">
-                        URL / Archivo:
-                      </span>
-                      <span className="truncate break-all font-mono text-xs bg-white px-2 py-1 rounded border border-slate-200">
-                        {dbStatus.dbUrl}
-                      </span>
+              <div>
+                {/* Tab bar */}
+                <div className="flex border-b border-slate-200 mb-6 bg-white rounded-t-xl">
+                  <button
+                    onClick={() => setConfigTab("operadores")}
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors border-b-2 cursor-pointer ${
+                      configTab === "operadores"
+                        ? "border-blue-500 text-blue-600"
+                        : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                    }`}
+                  >
+                    <Users className="w-4 h-4" />
+                    <span>Operadores de Línea</span>
+                  </button>
+                  <button
+                    onClick={() => setConfigTab("turso")}
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors border-b-2 cursor-pointer ${
+                      configTab === "turso"
+                        ? "border-blue-500 text-blue-600"
+                        : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                    }`}
+                  >
+                    <Settings className="w-4 h-4" />
+                    <span>Turso BD</span>
+                  </button>
+                </div>
+
+                {/* Operadores tab */}
+                {configTab === "operadores" && (
+                  <EmpleadosManager onShowToast={showToast} />
+                )}
+
+                {/* Turso BD tab */}
+                {configTab === "turso" && (
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 sm:p-8">
+                    <h2 className="text-xl font-bold text-slate-800 mb-4">
+                      Configuración de Base de Datos
+                    </h2>
+                    <div className="space-y-6">
+                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                        <h3 className="text-sm font-semibold text-slate-800 mb-2">
+                          Estado de la Conexión Actual
+                        </h3>
+                        <div className="flex items-center space-x-2 text-sm text-slate-600 mb-1">
+                          <span className="font-medium w-32">Tipo db:</span>
+                          <span>
+                            {dbStatus.dbType === "turso-cloud"
+                              ? "Base de Datos Cloud (Turso/libSQL)"
+                              : "SQLite Local (En Memoria/Archivo)"}
+                          </span>
+                        </div>
+                        <div className="flex text-sm text-slate-600">
+                          <span className="font-medium w-32 shrink-0">
+                            URL / Archivo:
+                          </span>
+                          <span className="truncate break-all font-mono text-xs bg-white px-2 py-1 rounded border border-slate-200">
+                            {dbStatus.dbUrl}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-sm text-slate-500">
+                        Para conectar a una base de datos externa de la nube en
+                        Turso, este proyecto debe configurarse a nivel de servidor
+                        estableciendo la variable de entorno{" "}
+                        <code className="bg-slate-100 px-1 rounded">
+                          TURSO_DATABASE_URL
+                        </code>{" "}
+                        y{" "}
+                        <code className="bg-slate-100 px-1 rounded">
+                          TURSO_AUTH_TOKEN
+                        </code>
+                        .
+                      </p>
                     </div>
                   </div>
-                  <p className="text-sm text-slate-500">
-                    Para conectar a una base de datos externa de la nube en
-                    Turso, este proyecto debe configurarse a nivel de servidor
-                    estableciendo la variable de entorno{" "}
-                    <code className="bg-slate-100 px-1 rounded">
-                      TURSO_DATABASE_URL
-                    </code>{" "}
-                    y{" "}
-                    <code className="bg-slate-100 px-1 rounded">
-                      TURSO_AUTH_TOKEN
-                    </code>
-                    .
-                  </p>
-                </div>
+                )}
               </div>
             )}
           </div>
