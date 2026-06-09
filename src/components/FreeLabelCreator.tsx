@@ -334,8 +334,8 @@ function FreeLabelPreview({
                         key={el.id}
                         onMouseDown={isFirstLabel ? (e) => handleMouseDown(el.id, e) : undefined}
                         className={`absolute truncate select-none ${
-                          isFirstLabel ? `cursor-move border ${isSelected || isBeingDragged ? `${color.border} ${color.bg}` : "border-transparent hover:border-slate-300"}` : ""
-                        }`}
+                          isFirstLabel ? `cursor-move border ${isSelected || isBeingDragged ? `${color.border} ${color.bg} ring-2 ring-offset-1 ring-blue-400/50` : "border-transparent hover:border-slate-300"}` : ""
+                        } ${isBeingDragged ? "!cursor-grabbing z-20 opacity-80 shadow-lg" : ""}`}
                         style={{
                           left: xPx,
                           top: yPx,
@@ -724,6 +724,63 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
                 </div>
               );
             })}
+          </div>
+
+          {/* Saved designs list */}
+          <div className="border-t border-slate-200 flex-shrink-0 max-h-[240px] overflow-y-auto">
+            <div className="p-3">
+              <h3 className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center justify-between">
+                <span>Diseños guardados ({savedDesigns.length})</span>
+                {elements.length > 0 && (
+                  <button
+                    onClick={() => setShowSaveDialog(true)}
+                    className="flex items-center gap-1 px-2 py-0.5 text-[8px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded transition-colors border border-blue-200"
+                  >
+                    <Save className="w-2.5 h-2.5" />
+                    <span>Guardar</span>
+                  </button>
+                )}
+              </h3>
+              {savedDesigns.length === 0 ? (
+                <div className="text-center py-4 text-slate-300">
+                  <FolderOpen className="w-6 h-6 mx-auto mb-1 opacity-40" />
+                  <p className="text-[10px]">
+                    <span>Sin diseños guardados</span>
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {savedDesigns.map((design) => {
+                    const fmt = labelFormats.find((f) => f.id === design.formatId);
+                    return (
+                      <div
+                        key={design.name}
+                        className="flex items-center gap-2 px-2 py-2 rounded-lg border border-slate-100 hover:border-blue-300 hover:bg-blue-50/50 transition-all group cursor-pointer"
+                        onClick={() => handleLoadDesign(design)}
+                      >
+                        <FolderOpen className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-500 flex-shrink-0 transition-colors" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-semibold text-slate-700 truncate group-hover:text-blue-700">{design.name}</div>
+                          <div className="text-[9px] text-slate-400 mt-0.5">
+                            <span>{design.elements.length} elem.</span>
+                            {fmt && (
+                              <>{" · "}<span>{fmt.name}</span></>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteDesign(design.name); }}
+                          className="p-0.5 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                          title="Eliminar diseño"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
