@@ -1,6 +1,6 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { LabelFormat, ElementPosition } from '../types';
-import { getElementHeights } from '../utils/zebra';
+import { getDefaultElementHeight } from '../utils/zebra';
 import JsBarcode from 'jsbarcode';
 
 interface DraggableLabelPreviewProps {
@@ -20,10 +20,14 @@ export function DraggableLabelPreview({
 }: DraggableLabelPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
-  const [dragging, setDragging] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [interaction, setInteraction] = useState<{
+    type: 'drag' | 'resize';
+    elementId: string;
+    offsetX: number;
+    offsetY: number;
+  } | null>(null);
 
-  // Scale: pixels per mm — auto-calculate to fit container
+  // Scale: pixels per mm
   const [scale, setScale] = useState(6);
 
   useEffect(() => {
@@ -31,20 +35,17 @@ export function DraggableLabelPreview({
     const observer = new ResizeObserver((entries) => {
       const w = entries[0].contentRect.width;
       const h = entries[0].contentRect.height;
-      const sx = (w - 32) / format.width; // 16px padding each side
-      const sy = (h - 32) / format.height;
-      setScale(Math.max(2, Math.min(sx, sy, 12)));
+      const sx = (w - 40) / format.width;
+      const sy = (h - 40) / format.height;
+      setScale(Math.max(3, Math.min(sx, sy, 14)));
     });
     observer.observe(containerRef.current);
     return () => observer.disconnect();
   }, [format.width, format.height]);
 
-  const heights = getElementHeights(format);
-
-  // Convert mm position to px
   const mmToPx = (mm: number) => mm * scale;
 
-  // Get visible elements
+  // Visible elements
   const visibleElements = positions.filter(p => {
     if (p.id === 'name') return selectedParts.name && product.item_name;
     if (p.id === 'sku') return selectedParts.sku && product.sku;
@@ -53,94 +54,126 @@ export function DraggableLabelPreview({
     return false;
   });
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, elementId: string) => {
+  const handleMouseDown = useCallback((e: React.MouseEvent, elementId: string, type: 'drag' | 'resize') => {
     e.preventDefault();
     e.stopPropagation();
-    const el = e.currentTarget as HTMLElement;
+    const el = (type === 'drag' ? e.currentTarget : e.currentTarget.parentElement) as HTMLElement;
     const rect = el.getBoundingClientRect();
-    setDragging(elementId);
-    setDragOffset({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
+    setInteraction({
+      type,
+      elementId,
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top,
     });
   }, []);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!dragging || !labelRef.current) return;
+    if (!interaction || !labelRef.current) return;
     const labelRect = labelRef.current.getBoundingClientRect();
-    const pos = positions.find(p => p.id === dragging);
+    const pos = positions.find(p => p.id === interaction.elementId);
     if (!pos) return;
 
-    const newX = (e.clientX - labelRect.left - dragOffset.x) / scale;
-    const newY = (e.clientY - labelRect.top - dragOffset.y) / scale;
-
-    // Clamp within label bounds
-    const elementH = heights[dragging] || 3;
-    const clampedX = Math.max(0, Math.min(newX, format.width - 5));
-    const clampedY = Math.max(0, Math.min(newY, format.height - elementH));
-
-    const newPositions = positions.map(p =>
-      p.id === dragging ? { ...p, x: Math.round(clampedX * 10) / 10, y: Math.round(clampedY * 10) / 10 } : p
-    );
-    onPositionsChange(newPositions);
-  }, [dragging, dragOffset, scale, positions, format, heights, onPositionsChange]);
+    if (interaction.type === 'drag') {
+      const newX = (e.clientX - labelRect.left - interaction.offsetX) / scale;
+      const newY = (e.clientY - labelRect.top - interaction.offsetY) / scale;
+      const clampedX = Math.max(0, Math.min(newX, format.width - 5));
+      const clampedY = Math.max(0, Math.min(newY, format.height - pos.h));
+      const newPositions = positions.map(p =>
+        p.id === interaction.elementId
+          ? { ...p, x: Math.round(clampedX * 10) / 10, y: Math.round(clampedY * 10) / 10 }
+          : p
+      );
+      onPositionsChange(newPositions);
+    } else {
+      // Resize — only change height
+      const newBottomY = (e.clientY - labelRect.top) / scale;
+      const newH = newBottomY - pos.y;
+      const minH = pos.id === 'name' ? 2 : 4;
+      const maxH = format.height - pos.y;
+      const clampedH = Math.max(minH, Math.min(newH, maxH));
+      const newPositions = positions.map(p =>
+        p.id === interaction.elementId
+          ? { ...p, h: Math.round(clampedH * 10) / 10 }
+          : p
+      );
+      onPositionsChange(newPositions);
+    }
+  }, [interaction, scale, positions, format, onPositionsChange]);
 
   const handleMouseUp = useCallback(() => {
-    setDragging(null);
+    setInteraction(null);
   }, []);
 
-  // Generate barcode data URLs for preview
-  const generateBarcodeDataUrl = (value: string, bFormat: string, previewHeight: number): string | null => {
+  // Barcode data URL cache
+  const barcodeCache = useRef<Map<string, string>>(new Map());
+
+  const generateBarcodeDataUrl = (value: string, bFormat: string, heightPx: number): string | null => {
+    const key = `${value}-${bFormat}-${Math.round(heightPx)}`;
+    if (barcodeCache.current.has(key)) return barcodeCache.current.get(key)!;
     try {
       const canvas = document.createElement('canvas');
       JsBarcode(canvas, value, {
         format: bFormat,
         displayValue: true,
         margin: 2,
-        height: Math.max(20, previewHeight),
-        fontSize: 10,
-        width: 1.2,
+        height: Math.max(15, heightPx * 0.7),
+        fontSize: Math.max(8, Math.min(12, heightPx * 0.15)),
+        width: 1.5,
       });
-      return canvas.toDataURL('image/png');
+      const url = canvas.toDataURL('image/png');
+      barcodeCache.current.set(key, url);
+      return url;
     } catch {
       return null;
     }
   };
 
   const renderElement = (pos: ElementPosition) => {
-    const h = heights[pos.id];
-    const isDragged = dragging === pos.id;
+    const isActive = interaction?.elementId === pos.id;
+    const isDragging = isActive && interaction?.type === 'drag';
+    const isResizing = isActive && interaction?.type === 'resize';
+    const heightPx = mmToPx(pos.h);
+
+    // Center element horizontally within the label
+    const elementWidthPx = mmToPx(format.width) * 0.85;
+    const centerX = (mmToPx(format.width) - elementWidthPx) / 2;
 
     const style: React.CSSProperties = {
       position: 'absolute',
-      left: `${mmToPx(pos.x)}px`,
+      left: `${centerX}px`,
       top: `${mmToPx(pos.y)}px`,
-      cursor: isDragged ? 'grabbing' : 'grab',
-      zIndex: isDragged ? 50 : 10,
+      width: `${elementWidthPx}px`,
+      height: `${heightPx}px`,
+      cursor: isDragging ? 'grabbing' : 'grab',
+      zIndex: isActive ? 50 : 10,
       userSelect: 'none',
-      transition: isDragged ? 'none' : 'box-shadow 0.15s ease',
-      maxWidth: `${mmToPx(format.width - pos.x)}px`,
+      transition: isActive ? 'none' : 'box-shadow 0.15s ease',
     };
 
-    const baseClasses = `rounded-sm border transition-colors ${
-      isDragged
-        ? 'border-blue-500 bg-blue-50/80 shadow-lg ring-2 ring-blue-300'
-        : 'border-transparent hover:border-blue-400 hover:bg-blue-50/50 hover:shadow-md'
-    }`;
+    const borderColor = isActive ? 'border-blue-500' : 'border-transparent hover:border-blue-400';
+    const bgColor = isActive ? 'bg-blue-50/80' : 'hover:bg-blue-50/40';
+    const shadow = isDragging ? 'shadow-lg ring-2 ring-blue-300' : isResizing ? 'shadow-md ring-1 ring-blue-200' : 'hover:shadow';
 
     if (pos.id === 'name') {
       return (
         <div
           key={pos.id}
-          style={{ ...style, height: `${mmToPx(h)}px` }}
-          className={baseClasses}
-          onMouseDown={(e) => handleMouseDown(e, pos.id)}
+          style={style}
+          className={`rounded border ${borderColor} ${bgColor} ${shadow} flex items-center justify-center relative group/el`}
+          onMouseDown={(e) => handleMouseDown(e, pos.id, 'drag')}
         >
           <div
-            className="text-black font-bold leading-tight px-1 truncate"
-            style={{ fontSize: `${Math.max(8, scale * 1.8)}px` }}
+            className="text-black font-bold text-center leading-tight px-1 truncate w-full"
+            style={{ fontSize: `${Math.max(8, scale * 2)}px` }}
           >
             {product.item_name.substring(0, 30)}
+          </div>
+          {/* Resize handle */}
+          <div
+            className="absolute bottom-0 left-1/4 right-1/4 h-[4px] cursor-ns-resize opacity-0 group-hover/el:opacity-100 flex items-center justify-center"
+            onMouseDown={(e) => handleMouseDown(e, pos.id, 'resize')}
+          >
+            <div className="w-8 h-[3px] bg-blue-400 rounded-full" />
           </div>
         </div>
       );
@@ -155,41 +188,48 @@ export function DraggableLabelPreview({
       pos.id === 'ean13' ? product.ean13! :
       product.dun14!;
 
-    const barcodeUrl = generateBarcodeDataUrl(value, barcodeFormat, mmToPx(h - 3));
+    const barcodeUrl = generateBarcodeDataUrl(value, barcodeFormat, heightPx);
 
     return (
       <div
         key={pos.id}
-        style={{ ...style, height: `${mmToPx(h)}px` }}
-        className={baseClasses}
-        onMouseDown={(e) => handleMouseDown(e, pos.id)}
+        style={style}
+        className={`rounded border ${borderColor} ${bgColor} ${shadow} flex items-center justify-center relative group/el overflow-hidden`}
+        onMouseDown={(e) => handleMouseDown(e, pos.id, 'drag')}
       >
         {barcodeUrl ? (
           <img
             src={barcodeUrl}
             alt={pos.id}
-            className="h-full object-contain pointer-events-none"
+            className="max-h-full max-w-full object-contain pointer-events-none"
             draggable={false}
           />
         ) : (
-          <div className="flex items-center justify-center h-full px-2">
-            <span className="text-xs text-red-500 font-mono">{pos.id}: {value}</span>
-          </div>
+          <span className="text-[9px] text-red-500 font-mono">{pos.id}: {value}</span>
         )}
+        {/* Resize handle */}
+        <div
+          className="absolute bottom-0 left-1/4 right-1/4 h-[5px] cursor-ns-resize opacity-0 group-hover/el:opacity-100 flex items-center justify-center"
+          onMouseDown={(e) => handleMouseDown(e, pos.id, 'resize')}
+        >
+          <div className="w-10 h-[3px] bg-blue-400 rounded-full" />
+        </div>
       </div>
     );
   };
 
   return (
     <div className="flex flex-col h-full">
-      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-        <span>Vista Previa</span>
-        <span className="text-[10px] font-normal text-slate-400 normal-case">(arrastra los elementos)</span>
-      </h3>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+          Vista Previa
+          <span className="text-[10px] font-normal text-slate-400 normal-case tracking-normal">(arrastra · borde inferior redimensiona)</span>
+        </h3>
+      </div>
 
       <div
         ref={containerRef}
-        className="flex-1 bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center p-4 min-h-[200px] overflow-hidden"
+        className="flex-1 bg-gradient-to-br from-slate-100 to-slate-50 rounded-lg border border-slate-200 flex items-center justify-center p-5 min-h-[220px] overflow-hidden"
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
@@ -197,27 +237,19 @@ export function DraggableLabelPreview({
         {/* Label surface */}
         <div
           ref={labelRef}
-          className="bg-white relative shadow-lg border border-slate-300 overflow-hidden"
+          className="bg-white relative shadow-[0_2px_12px_rgba(0,0,0,0.12)] border border-slate-200 overflow-visible"
           style={{
             width: `${mmToPx(format.width)}px`,
             height: `${mmToPx(format.height)}px`,
           }}
         >
-          {/* Grid guides */}
+          {/* 5mm grid */}
           <div className="absolute inset-0 pointer-events-none" style={{
             backgroundImage: `
-              linear-gradient(to right, rgba(0,0,0,0.03) 1px, transparent 1px),
-              linear-gradient(to bottom, rgba(0,0,0,0.03) 1px, transparent 1px)
+              linear-gradient(to right, rgba(0,0,0,0.04) 1px, transparent 1px),
+              linear-gradient(to bottom, rgba(0,0,0,0.04) 1px, transparent 1px)
             `,
             backgroundSize: `${mmToPx(5)}px ${mmToPx(5)}px`,
-          }} />
-
-          {/* Margin guides */}
-          <div className="absolute pointer-events-none border border-dashed border-blue-200/60" style={{
-            left: `${mmToPx(format.marginLeft)}px`,
-            top: `${mmToPx(format.marginTop)}px`,
-            right: `${mmToPx(format.marginRight)}px`,
-            bottom: `${mmToPx(format.marginBottom)}px`,
           }} />
 
           {/* Draggable elements */}
@@ -226,15 +258,15 @@ export function DraggableLabelPreview({
           {/* Empty state */}
           {visibleElements.length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-xs text-slate-300 font-medium">Sin elementos seleccionados</span>
+              <span className="text-xs text-slate-300">Sin elementos</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Dimensions info */}
-      <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400 px-1">
-        <span>{format.width}×{format.height}mm</span>
+      {/* Dimensions */}
+      <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400 px-0.5">
+        <span>{format.width}×{format.height} mm</span>
         <span>{format.dpi} DPI</span>
       </div>
     </div>

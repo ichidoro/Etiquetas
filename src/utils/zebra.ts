@@ -23,31 +23,24 @@ export const defaultLabelFormat: LabelFormat = {
   showDun14: true,
 };
 
-/** Height of each element type in mm (approximate, for layout purposes) */
-export function getElementHeights(format: LabelFormat): Record<string, number> {
-  const dpmm = format.dpi === 300 ? 12 : 8;
-  const fontHmm = 3; // ~3mm for the text line
-  // Barcode height: fill remaining space but reasonable minimum
-  const barcodeHmm = Math.max(8, format.height * 0.35);
-  const barcodeWithTextMm = barcodeHmm + 3; // barcode + human-readable text below
-
-  return {
-    name: fontHmm,
-    sku: barcodeWithTextMm,
-    ean13: barcodeWithTextMm,
-    dun14: barcodeWithTextMm,
-  };
+/** Default height of each element type in mm */
+export function getDefaultElementHeight(id: string, format: LabelFormat): number {
+  if (id === 'name') return 3;
+  // Barcode: reasonable default based on label height
+  return Math.max(8, format.height * 0.35);
 }
 
-/** Calculate default auto-stacked positions (tight, no gaps) */
+/** Calculate default auto-stacked positions (tight, centered horizontally) */
 export function calculateDefaultPositions(
   format: LabelFormat,
   product: { sku: string; item_name: string; ean13?: string; dun14?: string },
 ): ElementPosition[] {
-  const heights = getElementHeights(format);
   const gap = 1; // 1mm gap between elements
   const positions: ElementPosition[] = [];
   let currentY = format.marginTop;
+
+  // Center X: elements will be centered within the label
+  const centerX = 0; // 0 means "auto-center" — handled in ZPL generation
 
   const elements: { id: ElementPosition['id']; show: boolean; hasData: boolean }[] = [
     { id: 'name', show: format.showName, hasData: !!product.item_name },
@@ -58,8 +51,9 @@ export function calculateDefaultPositions(
 
   for (const el of elements) {
     if (el.show && el.hasData) {
-      positions.push({ id: el.id, x: format.marginLeft, y: currentY });
-      currentY += heights[el.id] + gap;
+      const h = getDefaultElementHeight(el.id, format);
+      positions.push({ id: el.id, x: centerX, y: currentY, h });
+      currentY += h + gap;
     }
   }
 
@@ -80,7 +74,6 @@ export function generateZpl(
   const labelHeightDots = Math.round(format.height * dpmm);
   const gapDots = Math.round(format.horizontalGap * dpmm);
   const marginLeftDots = Math.round(format.marginLeft * dpmm);
-  const marginTopDots = Math.round(format.marginTop * dpmm);
 
   const totalPw = Math.max(
     labelWidthDots,
@@ -100,24 +93,21 @@ export function generateZpl(
   const fontH = Math.round(3 * dpmm);
   const fontW = Math.round(2.5 * dpmm);
 
-  // Barcode height in dots
-  const barcodeHeightMm = Math.max(8, format.height * 0.35);
-  const bHeight = Math.round(barcodeHeightMm * dpmm);
-
   const orientation = format.orientation;
   const verticalGapDots = Math.round((format.verticalGap || 2) * dpmm);
 
-  // Calculate positions (use custom if provided, otherwise auto-stack)
+  // Calculate positions
   const positions = customPositions || calculateDefaultPositions(
     format,
     { sku, item_name: itemName, ean13, dun14 },
   );
 
-  // Build a lookup for positions
   const posMap = new Map<string, ElementPosition>();
   for (const p of positions) posMap.set(p.id, p);
 
-  // Generate for each column/row
+  // Usable label width for centering (in dots)
+  const usableWidth = labelWidthDots - marginLeftDots;
+
   const verticalCount = format.labelsPerColumn || 1;
   const horizontalCount = format.labelsPerRow || 1;
 
@@ -126,36 +116,46 @@ export function generateZpl(
       const colOffsetX = marginLeftDots + col * (labelWidthDots + gapDots);
       const rowOffsetY = row * (labelHeightDots + verticalGapDots);
 
-      // Name
+      // Name — centered with ^FB field block
       if (format.showName && itemName && posMap.has('name')) {
         const pos = posMap.get('name')!;
-        const x = colOffsetX + Math.round(pos.x * dpmm) - marginLeftDots;
         const y = rowOffsetY + Math.round(pos.y * dpmm);
-        zpl += `^FO${x},${y}^A0${orientation},${fontH},${fontW}^FD${itemName.substring(0, 30)}^FS\n`;
+        // Use ^FB for horizontal centering of text
+        const fbWidth = usableWidth;
+        zpl += `^FO${colOffsetX},${y}^FB${fbWidth},1,0,C,0^A0${orientation},${fontH},${fontW}^FD${itemName.substring(0, 30)}^FS\n`;
       }
 
-      // SKU (Code 128)
+      // SKU (Code 128) — centered
       if (format.showSku && sku && posMap.has('sku')) {
         const pos = posMap.get('sku')!;
-        const x = colOffsetX + Math.round(pos.x * dpmm) - marginLeftDots;
+        const bHeight = Math.round(pos.h * dpmm);
         const y = rowOffsetY + Math.round(pos.y * dpmm);
-        zpl += `^FO${x},${y}^BC${orientation},${bHeight},Y,N,N^FD${sku}^FS\n`;
+        // Approximate barcode width for Code128: ~11 * chars * moduleWidth(2) dots
+        const approxBarcodeWidth = Math.min(sku.length * 22 + 40, usableWidth);
+        const centerX = colOffsetX + Math.round((usableWidth - approxBarcodeWidth) / 2);
+        zpl += `^FO${Math.max(colOffsetX, centerX)},${y}^BC${orientation},${bHeight},Y,N,N^FD${sku}^FS\n`;
       }
 
-      // EAN13
+      // EAN13 — centered
       if (format.showEan13 && ean13 && posMap.has('ean13')) {
         const pos = posMap.get('ean13')!;
-        const x = colOffsetX + Math.round(pos.x * dpmm) - marginLeftDots;
+        const bHeight = Math.round(pos.h * dpmm);
         const y = rowOffsetY + Math.round(pos.y * dpmm);
-        zpl += `^FO${x},${y}^BE${orientation},${bHeight},Y,N^FD${ean13}^FS\n`;
+        // EAN13 is always 95 modules wide; at default module width ~190 dots
+        const approxBarcodeWidth = 190;
+        const centerX = colOffsetX + Math.round((usableWidth - approxBarcodeWidth) / 2);
+        zpl += `^FO${Math.max(colOffsetX, centerX)},${y}^BE${orientation},${bHeight},Y,N^FD${ean13}^FS\n`;
       }
 
-      // DUN14
+      // DUN14 — centered
       if (format.showDun14 && dun14 && posMap.has('dun14')) {
         const pos = posMap.get('dun14')!;
-        const x = colOffsetX + Math.round(pos.x * dpmm) - marginLeftDots;
+        const bHeight = Math.round(pos.h * dpmm);
         const y = rowOffsetY + Math.round(pos.y * dpmm);
-        zpl += `^FO${x},${y}^B2${orientation},${bHeight},Y,N,N^FD${dun14}^FS\n`;
+        // ITF14 approximate width: ~14 chars * 2 * moduleWidth(2)
+        const approxBarcodeWidth = Math.min(dun14.length * 18 + 40, usableWidth);
+        const centerX = colOffsetX + Math.round((usableWidth - approxBarcodeWidth) / 2);
+        zpl += `^FO${Math.max(colOffsetX, centerX)},${y}^B2${orientation},${bHeight},Y,N,N^FD${dun14}^FS\n`;
       }
     }
   }

@@ -47,4 +47,5 @@ export interface ElementPosition {
   id: 'name' | 'sku' | 'ean13' | 'dun14';
   x: number;  // mm from left edge of label
   y: number;  // mm from top edge of label
+  h: number;  // height in mm (for resizable elements)
 }
