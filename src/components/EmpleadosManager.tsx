@@ -432,6 +432,21 @@ export function EmpleadosManager({ onShowToast }: EmpleadosManagerProps) {
 
             {/* Form */}
             <form onSubmit={handleCreate} className="p-6 space-y-4">
+              {/* Auto-generated code preview */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                  <span>Código (auto-generado)</span>
+                </label>
+                <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-sm">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                    {String(
+                      Math.max(0, ...empleados.map(e => Number(e.codigo) || 0)) + 1
+                    ).padStart(3, '0')}
+                  </span>
+                  <span className="ml-2 text-xs text-slate-400">Se asigna automáticamente</span>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
                   <span>Nombre *</span>
