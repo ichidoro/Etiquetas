@@ -222,7 +222,7 @@ function FreeLabelPreview({
   const totalWidthMm = format.width * cols + gapMm * Math.max(0, cols - 1);
   const totalHeightMm = format.height * rows + vGapMm * Math.max(0, rows - 1);
 
-  const scale = Math.min(520 / totalWidthMm, 380 / totalHeightMm);
+  const scale = Math.min(700 / totalWidthMm, 500 / totalHeightMm);
   const singleW = format.width * scale;
   const singleH = format.height * scale;
   const gapPx = gapMm * scale;
@@ -695,8 +695,8 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
 
       {/* ── Main content ── */}
       <div className="flex-1 flex overflow-hidden">
-        {/* ── Left panel: Toolbar + Element list ── */}
-        <div className="w-[280px] flex-shrink-0 border-r border-slate-200 bg-white flex flex-col overflow-hidden">
+        {/* ── Left panel: Toolbar + Element list + Saved Designs ── */}
+        <div className="w-[260px] flex-shrink-0 border-r border-slate-200 bg-white flex flex-col overflow-hidden">
           {/* Toolbar */}
           <div className="p-3 border-b border-slate-100">
             <h3 className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">
@@ -920,23 +920,16 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
             </div>
           )}
 
-          {/* ── Bottom: Print Console ── */}
-          <div className="bg-slate-800 p-4 text-white border-t border-slate-700 flex-shrink-0">
-            <div className="flex items-center gap-2 mb-3">
-              <Code className="w-3.5 h-3.5 text-blue-400" />
-              <h3 className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                <span>Consola de Impresión</span>
-              </h3>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 mb-3">
+          {/* ── Bottom: Compact Print Console ── */}
+          <div className="bg-slate-800 px-4 py-2.5 text-white border-t border-slate-700 flex-shrink-0">
+            <div className="flex items-center gap-3">
               {/* Format selector */}
-              <div>
-                <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+              <div className="min-w-0" style={{ width: '200px' }}>
+                <label className="block text-[8px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
                   <span>Formato</span>
                 </label>
                 <select
-                  className="w-full rounded-md border border-slate-600 bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm p-2 text-white outline-none cursor-pointer"
+                  className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-white outline-none cursor-pointer"
                   value={activeFormatId}
                   onChange={(e) => setActiveFormatId(e.target.value)}
                 >
@@ -947,97 +940,98 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
               </div>
 
               {/* Printer selector */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider">
-                    <span>Impresora</span>
-                  </label>
+              <div className="flex-1 min-w-0">
+                <label className="block text-[8px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
+                  <span>Impresora</span>
                   {systemPrinters.length > 0 && selectedSystemPrinter === loadDefaultPrinter() && (
-                    <span className="text-[8px] text-emerald-400 font-medium">★ predeterminada</span>
+                    <span className="text-emerald-400 ml-1">★</span>
                   )}
-                </div>
+                </label>
                 {systemPrinters.length > 0 ? (
                   <select
-                    className="w-full rounded-md border border-slate-600 bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm p-2 text-white outline-none cursor-pointer"
+                    className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-white outline-none cursor-pointer"
                     value={selectedSystemPrinter}
                     onChange={(e) => handlePrinterChange(e.target.value)}
                   >
                     {systemPrinters.map((p) => (
-                      <option key={p.Name} value={p.Name}>{p.Name} ({p.PortName})</option>
+                      <option key={p.Name} value={p.Name}>{p.Name}</option>
                     ))}
                   </select>
                 ) : (
-                  <div className="w-full rounded-md border border-slate-600 bg-slate-700 text-sm p-2 text-slate-500 italic">
+                  <div className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-slate-500 italic">
                     <span>Sin impresoras</span>
                   </div>
                 )}
               </div>
 
-              {/* Copies + Start number */}
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                    <span>Copias</span>
-                  </label>
-                  <input
-                    type="number" min={1} max={999} value={copies}
-                    onChange={(e) => setCopies(Math.max(1, Number(e.target.value)))}
-                    className="w-full rounded-md border border-slate-600 bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm p-2 text-white outline-none font-semibold"
-                  />
-                </div>
-                {elements.some((el) => el.type === "number") && (
-                  <div className="flex-1">
-                    <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                      <span>Inicio #</span>
-                    </label>
-                    <input
-                      type="number" min={1} value={startNumber}
-                      onChange={(e) => setStartNumber(Math.max(1, Number(e.target.value)))}
-                      className="w-full rounded-md border border-slate-600 bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm p-2 text-white outline-none font-semibold"
-                    />
-                  </div>
-                )}
+              {/* Copies */}
+              <div style={{ width: '70px' }}>
+                <label className="block text-[8px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
+                  <span>Copias</span>
+                </label>
+                <input
+                  type="number" min={1} max={999} value={copies}
+                  onChange={(e) => setCopies(Math.max(1, Number(e.target.value)))}
+                  className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-white outline-none font-semibold"
+                />
               </div>
 
-              {/* Print & Download */}
-              <div className="flex flex-col gap-1.5">
+              {/* Start number (conditional) */}
+              {elements.some((el) => el.type === "number") && (
+                <div style={{ width: '70px' }}>
+                  <label className="block text-[8px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
+                    <span>Inicio #</span>
+                  </label>
+                  <input
+                    type="number" min={1} value={startNumber}
+                    onChange={(e) => setStartNumber(Math.max(1, Number(e.target.value)))}
+                    className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-white outline-none font-semibold"
+                  />
+                </div>
+              )}
+
+              {/* Print + Download buttons */}
+              <div className="flex items-end gap-1.5 flex-shrink-0">
                 <button
                   onClick={handlePrint}
                   disabled={usbPrinting || !selectedSystemPrinter || elements.length === 0}
-                  className="w-full flex items-center justify-center px-4 py-2.5 outline-none rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-colors border border-emerald-500 shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1.5 px-4 py-1.5 outline-none rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition-colors border border-emerald-500 shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mt-3"
                 >
-                  <Printer className="w-4 h-4 mr-2" />
-                  <span>{usbPrinting ? "Enviando..." : "🖨️ Imprimir"}</span>
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>{usbPrinting ? "..." : "Imprimir"}</span>
                 </button>
                 <button
                   onClick={handleDownloadZPL}
                   disabled={elements.length === 0}
-                  className="w-full flex items-center justify-center px-3 py-1.5 outline-none rounded-md bg-slate-700 hover:bg-slate-600 text-slate-300 font-medium text-[11px] transition-colors border border-slate-600 cursor-pointer disabled:opacity-50"
+                  className="flex items-center gap-1 px-2 py-1.5 outline-none rounded bg-slate-700 hover:bg-slate-600 text-slate-300 text-[10px] transition-colors border border-slate-600 cursor-pointer disabled:opacity-50 mt-3"
                 >
-                  <Download className="w-3 h-3 mr-1.5" />
-                  <span>Descargar .ZPL</span>
+                  <Download className="w-3 h-3" />
+                  <span>.ZPL</span>
+                </button>
+                <button
+                  onClick={handleCopyZpl}
+                  className="flex items-center gap-1 px-2 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 text-[10px] transition-colors border border-slate-600 cursor-pointer mt-3"
+                  title="Copiar ZPL"
+                >
+                  {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
                 </button>
               </div>
             </div>
 
-            {/* ZPL Code */}
-            <div className="bg-slate-950 border border-slate-900 rounded-md p-2 overflow-hidden relative group max-h-[120px]">
-              <pre className="text-[8px] text-emerald-400 font-mono whitespace-pre-wrap break-all h-full overflow-y-auto custom-scrollbar leading-relaxed">
-                {zplCode}
-              </pre>
-              <button
-                onClick={handleCopyZpl}
-                className="absolute top-1 right-1 p-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                title="Copiar ZPL"
-              >
-                {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-              </button>
+            {/* Info bar */}
+            <div className="flex items-center justify-between mt-1.5 text-[9px] text-slate-500">
+              <span>
+                {currentFormat && `${currentFormat.width}×${currentFormat.height}mm · ${currentFormat.dpi} DPI · ${currentFormat.labelsPerRow}col · ${elements.length} elem`}
+              </span>
+              <div className="flex items-center gap-2">
+                <span>{savedDesigns.length} diseños en BD</span>
+                {editingDesignId && (
+                  <span className="px-1 py-0.5 bg-blue-600/30 text-blue-300 rounded text-[8px] font-semibold">
+                    Editando #{editingDesignId}
+                  </span>
+                )}
+              </div>
             </div>
-            {copied && (
-              <p className="text-[10px] text-green-400 mt-0.5 text-right font-medium">
-                <span>¡Copiado!</span>
-              </p>
-            )}
           </div>
         </div>
       </div>
@@ -1088,22 +1082,6 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
         </div>
       )}
 
-      {/* ── Footer ── */}
-      <div className="px-4 py-2 border-t border-slate-200 bg-white flex justify-between items-center flex-shrink-0">
-        <div className="text-[10px] text-slate-400">
-          {currentFormat && (
-            <span>{currentFormat.width}×{currentFormat.height}mm · {currentFormat.dpi} DPI · {currentFormat.labelsPerRow}col · {elements.length} elementos</span>
-          )}
-        </div>
-        <div className="text-[10px] text-slate-400 flex items-center gap-2">
-          <span>{savedDesigns.length} diseños en BD</span>
-          {editingDesignId && (
-            <span className="px-1.5 py-0.5 bg-blue-100 text-blue-600 rounded text-[9px] font-semibold">
-              Editando #{editingDesignId}
-            </span>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
