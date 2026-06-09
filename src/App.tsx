@@ -23,6 +23,7 @@ import { PrintModal } from "./components/PrintModal";
 import { TracePrintModal } from "./components/TracePrintModal";
 import { LabelPreview } from "./components/LabelPreview";
 import { EmpleadosManager } from "./components/EmpleadosManager";
+import { PrinterManager } from "./components/PrinterManager";
 
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -42,7 +43,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState<
     "maestro" | "formatos" | "historial" | "configuracion"
   >("maestro");
-  const [configTab, setConfigTab] = useState<"turso" | "operadores">("operadores");
+  const [configTab, setConfigTab] = useState<"turso" | "operadores" | "impresoras">("operadores");
   const [dbStatus, setDbStatus] = useState<{ dbType: string; dbUrl: string }>({
     dbType: "local-sqlite",
     dbUrl: "file:local.db",
@@ -1379,6 +1380,17 @@ export default function App() {
                     <Settings className="w-4 h-4" />
                     <span>Turso BD</span>
                   </button>
+                  <button
+                    onClick={() => setConfigTab("impresoras")}
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors border-b-2 cursor-pointer ${
+                      configTab === "impresoras"
+                        ? "border-blue-500 text-blue-600"
+                        : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                    }`}
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>Impresoras</span>
+                  </button>
                 </div>
 
                 {/* Operadores tab */}
@@ -1429,6 +1441,11 @@ export default function App() {
                       </p>
                     </div>
                   </div>
+                )}
+
+                {/* Impresoras tab */}
+                {configTab === "impresoras" && (
+                  <PrinterManager onShowToast={showToast} />
                 )}
               </div>
             )}
