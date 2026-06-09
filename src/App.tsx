@@ -740,6 +740,7 @@ export default function App() {
                           <th
                             scope="col"
                             className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
+                            translate="no"
                           >
                             ISP
                           </th>
@@ -832,7 +833,7 @@ export default function App() {
                                   </span>
                                 )}
                               </td>
-                              <td className="px-3 py-3 whitespace-nowrap text-xs text-slate-500 font-mono">
+                              <td className="px-3 py-3 whitespace-nowrap text-xs text-slate-500 font-mono" translate="no">
                                 {p.isp || "-"}
                               </td>
                               <td className="px-3 py-3 whitespace-nowrap text-sm text-slate-500">

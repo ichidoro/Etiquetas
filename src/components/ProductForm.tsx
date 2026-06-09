@@ -162,7 +162,7 @@ export function ProductForm({ product, onSave, onClose }: ProductFormProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">ISP</label>
+              <label className="block text-xs font-semibold text-slate-500 uppercase mb-1" translate="no">ISP</label>
               <input 
                 name="isp"
                 value={formData.isp}
