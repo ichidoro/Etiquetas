@@ -126,10 +126,16 @@ async function initDb() {
   try {
     await db.execute(`CREATE TABLE IF NOT EXISTS empleados (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      codigo TEXT,
       nombre TEXT NOT NULL,
       linea_proceso TEXT,
       labor TEXT
     )`);
+  } catch {}
+
+  // Migration: add codigo column if missing
+  try {
+    await db.execute("ALTER TABLE empleados ADD COLUMN codigo TEXT;");
   } catch {}
 
   // Seed label formats only if empty (preserves cloud data)
@@ -663,12 +669,18 @@ app.get('/api/empleados', async (_req, res) => {
 app.post('/api/empleados', async (req, res) => {
   const { nombre, linea_proceso, labor } = req.body;
   try {
+    // Auto-generate next correlative code: 001, 002, ...
+    const maxResult = await db.execute('SELECT MAX(CAST(codigo AS INTEGER)) as maxCode FROM empleados');
+    const maxCode = Number(maxResult.rows[0]?.maxCode) || 0;
+    const codigo = String(maxCode + 1).padStart(3, '0');
+
     const result = await db.execute({
-      sql: 'INSERT INTO empleados (nombre, linea_proceso, labor) VALUES (?, ?, ?)',
-      args: [nombre, linea_proceso || null, labor || null],
+      sql: 'INSERT INTO empleados (codigo, nombre, linea_proceso, labor) VALUES (?, ?, ?, ?)',
+      args: [codigo, nombre, linea_proceso || null, labor || null],
     });
     res.status(201).json({
       id: result.lastInsertRowid ? Number(result.lastInsertRowid) : 0,
+      codigo,
       nombre,
       linea_proceso,
       labor,
@@ -686,7 +698,7 @@ app.put('/api/empleados/:id', async (req, res) => {
       sql: 'UPDATE empleados SET nombre = ?, linea_proceso = ?, labor = ? WHERE id = ?',
       args: [nombre, linea_proceso || null, labor || null, Number(id)],
     });
-    res.json({ id: Number(id), nombre, linea_proceso, labor });
+    res.json({ id: Number(id), codigo: req.body.codigo, nombre, linea_proceso, labor });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

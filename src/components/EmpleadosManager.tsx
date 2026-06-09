@@ -7,6 +7,7 @@ import { Plus, Edit, Trash2, Search, Users, Save, X } from 'lucide-react';
 
 interface Empleado {
   id?: number;
+  codigo?: string;
   nombre: string;
   linea_proceso: string;
   labor: string;
@@ -155,6 +156,7 @@ export function EmpleadosManager({ onShowToast }: EmpleadosManagerProps) {
   const filtered = empleados.filter((emp) => {
     const q = search.toLowerCase();
     return (
+      (emp.codigo || '').toLowerCase().includes(q) ||
       emp.nombre.toLowerCase().includes(q) ||
       emp.linea_proceso.toLowerCase().includes(q) ||
       emp.labor.toLowerCase().includes(q)
@@ -258,7 +260,7 @@ export function EmpleadosManager({ onShowToast }: EmpleadosManagerProps) {
             <thead className="bg-slate-50">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  <span>#</span>
+                  <span>Código</span>
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   <span>Nombre</span>
@@ -282,9 +284,11 @@ export function EmpleadosManager({ onShowToast }: EmpleadosManagerProps) {
                     key={emp.id ?? idx}
                     className="hover:bg-slate-50/60 transition-colors"
                   >
-                    {/* # */}
-                    <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">
-                      <span>{idx + 1}</span>
+                    {/* Código */}
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                        {emp.codigo || '—'}
+                      </span>
                     </td>
 
                     {/* Nombre */}
