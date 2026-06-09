@@ -16,6 +16,7 @@ import {
   Filter,
   ClipboardList,
   Users,
+  PenTool,
 } from "lucide-react";
 import { Product, LabelFormat } from "./types";
 import { ProductForm } from "./components/ProductForm";
@@ -24,6 +25,7 @@ import { TracePrintModal } from "./components/TracePrintModal";
 import { LabelPreview } from "./components/LabelPreview";
 import { EmpleadosManager } from "./components/EmpleadosManager";
 import { PrinterManager } from "./components/PrinterManager";
+import { FreeLabelCreator } from "./components/FreeLabelCreator";
 
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -41,7 +43,7 @@ export default function App() {
 
   // Views and DB status
   const [currentView, setCurrentView] = useState<
-    "maestro" | "formatos" | "historial" | "configuracion"
+    "maestro" | "formatos" | "historial" | "configuracion" | "disenador"
   >("maestro");
   const [configTab, setConfigTab] = useState<"turso" | "operadores" | "impresoras">("operadores");
   const [dbStatus, setDbStatus] = useState<{ dbType: string; dbUrl: string }>({
@@ -460,7 +462,14 @@ export default function App() {
             className={`px-6 py-3 flex items-center gap-3 cursor-pointer text-sm font-medium transition-colors ${currentView === "maestro" ? "bg-blue-600 text-white" : "hover:bg-slate-800 text-slate-300"}`}
           >
             <Package className="w-4 h-4" />
-            Mantenedor Maestro
+            Códigos y Trazabilidad
+          </div>
+          <div
+            onClick={() => setCurrentView("disenador")}
+            className={`px-6 py-3 flex items-center gap-3 cursor-pointer text-sm font-medium transition-colors ${currentView === "disenador" ? "bg-blue-600 text-white" : "hover:bg-slate-800 text-slate-300"}`}
+          >
+            <PenTool className="w-4 h-4" />
+            Diseñador de Etiquetas
           </div>
           <div
             onClick={() => setCurrentView("formatos")}
@@ -502,14 +511,16 @@ export default function App() {
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 flex-shrink-0">
           <div>
             <h1 className="text-lg font-bold text-slate-800 tracking-tight">
-              {currentView === "maestro" ? "Maestro de Productos"
+              {currentView === "maestro" ? "Códigos y Trazabilidad"
                 : currentView === "formatos" ? "Formatos de Etiqueta"
+                : currentView === "disenador" ? "Diseñador de Etiquetas"
                 : currentView === "historial" ? "Historial de Impresión"
                 : "Configuración"}
             </h1>
             <p className="text-xs text-slate-500">
-              {currentView === "maestro" ? "Gestión de SKU y Códigos GS1"
+              {currentView === "maestro" ? "Gestión de SKU, códigos GS1 y etiquetas de trazabilidad"
                 : currentView === "formatos" ? "Configuración de etiquetas ZPL"
+                : currentView === "disenador" ? "Crea etiquetas personalizadas con texto libre"
                 : currentView === "historial" ? "Registro de impresiones enviadas"
                 : "Configuración del sistema"}
             </p>
@@ -1334,6 +1345,13 @@ export default function App() {
                 </div>
                 </div>
               </div>
+            )}
+
+            {currentView === "disenador" && (
+              <FreeLabelCreator
+                labelFormats={labelFormats}
+                onShowToast={showToast}
+              />
             )}
 
             {currentView === "historial" && (
