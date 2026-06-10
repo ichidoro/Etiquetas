@@ -50,16 +50,17 @@ function getISOWeek(d: Date): number {
   return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
 
-function getDayLetter(d: Date): string {
-  const day = d.getDay(); // 0=Sun, 1=Mon, ...
-  return ["D", "L", "M", "X", "J", "V", "S"][day];
+function getDayNumber(d: Date): string {
+  const jsDay = d.getDay(); // 0=Sun, 1=Mon, ...
+  // ISO: Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6, Sun=7
+  return String(jsDay === 0 ? 7 : jsDay);
 }
 
 function buildTraceCode(elabDate: Date, operadorCodigo: string, lineaProceso: string): string {
   const week = String(getISOWeek(elabDate)).padStart(2, "0");
-  const dayLetter = getDayLetter(elabDate);
+  const dayNum = getDayNumber(elabDate);
   const line = lineaProceso.trim() || "XX";
-  return `S${week}-${dayLetter}-${operadorCodigo}-${line}`;
+  return `S${week}-${dayNum}-${operadorCodigo}-${line}`;
 }
 
 // ─── ZPL generation (multi-column aware) ────────────────────────────────────
@@ -637,7 +638,7 @@ export function TracePrintModal({
                       <div className="text-[8px] font-semibold text-purple-500 uppercase mb-1">Código de trazabilidad</div>
                       <div className="text-sm font-bold text-purple-800 tracking-wide font-mono">{traceCode}</div>
                       <div className="text-[8px] text-purple-400 mt-1">
-                        S{String(getISOWeek(elabDate)).padStart(2, "0")}=Semana · {getDayLetter(elabDate)}=Día · {selectedOperador.codigo}=Op · {lineaProceso || "XX"}=Línea
+                        S{String(getISOWeek(elabDate)).padStart(2, "0")}=Semana · {getDayNumber(elabDate)}=Día · {selectedOperador.codigo}=Op · {lineaProceso || "XX"}=Línea
                       </div>
                     </div>
                   )}
