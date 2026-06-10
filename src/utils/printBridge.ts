@@ -10,7 +10,7 @@
  */
 
 const LOCAL_SERVER_URL = "http://localhost:3000";
-const PING_TIMEOUT = 3000; // 3 seconds
+const PING_TIMEOUT = 10000; // 10 seconds — first mixed-content request can be slow
 
 /** Check if we're running on Cloud (not localhost) */
 export function isRunningOnCloud(): boolean {
