@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Printer, RefreshCw, Star, Check, AlertCircle, Wifi, Usb } from "lucide-react";
+import { Printer, RefreshCw, Star, Check, AlertCircle, Wifi, WifiOff, Usb } from "lucide-react";
+import { isRunningOnCloud, isLocalServerAvailable, fetchPrinters as bridgeFetchPrinters } from "../utils/printBridge";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,6 +67,9 @@ export function PrinterManager({ onShowToast }: PrinterManagerProps) {
       return [];
     }
   });
+  const [onCloud] = useState(isRunningOnCloud());
+  const [bridgeAvailable, setBridgeAvailable] = useState(false);
+  const [bridgeChecked, setBridgeChecked] = useState(false);
 
   const toast = useCallback(
     (message: string, type: "success" | "error") => {
@@ -79,10 +83,19 @@ export function PrinterManager({ onShowToast }: PrinterManagerProps) {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/system-printers");
-      if (!res.ok) throw new Error("Error al detectar impresoras");
-      const data: SystemPrinter[] = await res.json();
+      let useBridge = false;
+      if (onCloud) {
+        useBridge = await isLocalServerAvailable();
+        setBridgeAvailable(useBridge);
+        setBridgeChecked(true);
+      }
+
+      const data = await bridgeFetchPrinters(useBridge) as SystemPrinter[];
       setPrinters(data);
+
+      if (data.length === 0 && onCloud && !useBridge) {
+        setError("Servidor local no detectado. Ejecuta instalar_zebra.bat en este PC.");
+      }
 
       // Update history: merge detected with saved history
       const names = data.map((p) => p.Name);
@@ -98,7 +111,7 @@ export function PrinterManager({ onShowToast }: PrinterManagerProps) {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, onCloud]);
 
   useEffect(() => {
     fetchPrinters();
@@ -139,6 +152,17 @@ export function PrinterManager({ onShowToast }: PrinterManagerProps) {
                 Detección, historial y predeterminada
               </span>
             </p>
+            {onCloud && bridgeChecked && (
+              bridgeAvailable ? (
+                <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                  <Wifi className="w-3 h-3" /> Conectado al servidor local
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                  <WifiOff className="w-3 h-3" /> Sin servidor local — ejecuta instalar_zebra.bat
+                </span>
+              )
+            )}
           </div>
         </div>
 
