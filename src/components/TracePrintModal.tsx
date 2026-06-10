@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { X, Printer, Download, Copy, Check, Code, Minus, Plus, Calendar, Move, RotateCcw, Save } from "lucide-react";
+import { X, Printer, Download, Copy, Check, Code, Minus, Plus, Calendar, Move, RotateCcw, Save, User, Settings2 } from "lucide-react";
 import { Product, LabelFormat } from "../types";
 
 // ─── localStorage helpers ───────────────────────────────────────────────────
@@ -17,6 +17,8 @@ interface TracePositions {
   elabY: number;  // mm from top
   vencY: number;
   nameY: number;
+  ispY: number;
+  traceCodeY: number;
 }
 
 function loadTraceLayout(formatId: string): TracePositions | null {
@@ -40,14 +42,37 @@ function addDays(d: Date, days: number): Date {
   const r = new Date(d); r.setDate(r.getDate() + days); return r;
 }
 
+// ─── Traceability helpers ───────────────────────────────────────────────────
+function getISOWeek(d: Date): number {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+}
+
+function getDayLetter(d: Date): string {
+  const day = d.getDay(); // 0=Sun, 1=Mon, ...
+  return ["D", "L", "M", "X", "J", "V", "S"][day];
+}
+
+function buildTraceCode(elabDate: Date, operadorCodigo: string, lineaProceso: string): string {
+  const week = String(getISOWeek(elabDate)).padStart(2, "0");
+  const dayLetter = getDayLetter(elabDate);
+  const line = lineaProceso.trim() || "XX";
+  return `S${week}-${dayLetter}-${operadorCodigo}-${line}`;
+}
+
 // ─── ZPL generation (multi-column aware) ────────────────────────────────────
 function generateTraceZpl(
   format: LabelFormat,
   elabDate: Date,
   vencDate: Date,
   productName: string,
+  ispValue: string | undefined,
+  traceCode: string,
   dateFontMm: number,
   nameFontMm: number,
+  traceFontMm: number,
   copies: number,
   positions: TracePositions,
 ): string {
@@ -69,9 +94,12 @@ function generateTraceZpl(
   const dateFontW = Math.round(dateFontH * 0.6);
   const nameFontH = Math.round(nameFontMm * dpmm);
   const nameFontW = Math.round(nameFontH * 0.6);
+  const traceFontH = Math.round(traceFontMm * dpmm);
+  const traceFontW = Math.round(traceFontH * 0.6);
 
   const elabStr = formatDDMMYYYY(elabDate);
   const vencStr = formatDDMMYYYY(vencDate);
+  const hasIsp = ispValue && ispValue.trim().length > 0;
 
   let zpl = "^XA\n";
   zpl += `^PW${totalPw}\n`;
@@ -87,10 +115,18 @@ function generateTraceZpl(
       const y1 = rowOffsetY + Math.round(positions.elabY * dpmm);
       const y2 = rowOffsetY + Math.round(positions.vencY * dpmm);
       const y3 = rowOffsetY + Math.round(positions.nameY * dpmm);
+      const y5 = rowOffsetY + Math.round(positions.traceCodeY * dpmm);
 
       zpl += `^FO${colOffsetX},${y1}^FB${usableW},1,0,C,0^A0N,${dateFontH},${dateFontW}^FDELAB: ${elabStr}^FS\n`;
       zpl += `^FO${colOffsetX},${y2}^FB${usableW},1,0,C,0^A0N,${dateFontH},${dateFontW}^FDVENC: ${vencStr}^FS\n`;
       zpl += `^FO${colOffsetX},${y3}^FB${usableW},1,0,C,0^A0N,${nameFontH},${nameFontW}^FD${productName.substring(0, 40)}^FS\n`;
+
+      if (hasIsp) {
+        const y4 = rowOffsetY + Math.round(positions.ispY * dpmm);
+        zpl += `^FO${colOffsetX},${y4}^FB${usableW},1,0,C,0^A0N,${nameFontH},${nameFontW}^FDISP: ${ispValue!.trim()}^FS\n`;
+      }
+
+      zpl += `^FO${colOffsetX},${y5}^FB${usableW},1,0,C,0^A0N,${traceFontH},${traceFontW}^FD${traceCode}^FS\n`;
     }
   }
 
@@ -106,13 +142,17 @@ interface DragPreviewProps {
   onPositionsChange: (p: TracePositions) => void;
   dateFontMm: number;
   nameFontMm: number;
+  traceFontMm: number;
   elabText: string;
   vencText: string;
   productName: string;
+  ispText: string | null;
+  traceCode: string;
 }
 
 function DraggableTracePreview({
-  format, positions, onPositionsChange, dateFontMm, nameFontMm, elabText, vencText, productName,
+  format, positions, onPositionsChange, dateFontMm, nameFontMm, traceFontMm,
+  elabText, vencText, productName, ispText, traceCode,
 }: DragPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<string | null>(null);
@@ -123,11 +163,9 @@ function DraggableTracePreview({
   const gapMm = format.horizontalGap || 2;
   const vGapMm = format.verticalGap || 2;
 
-  // Total physical size of the full print area
   const totalWidthMm = format.width * cols + gapMm * Math.max(0, cols - 1);
   const totalHeightMm = format.height * rows + vGapMm * Math.max(0, rows - 1);
 
-  // Scale to fit available preview space (max ~480px wide, ~320px tall)
   const scale = Math.min(480 / totalWidthMm, 320 / totalHeightMm);
   const singleW = format.width * scale;
   const singleH = format.height * scale;
@@ -146,7 +184,11 @@ function DraggableTracePreview({
   const handleMouseDown = useCallback((id: string, e: React.MouseEvent) => {
     e.preventDefault();
     setDragging(id);
-    const yMm = id === "elab" ? positions.elabY : id === "venc" ? positions.vencY : positions.nameY;
+    const yMm = id === "elab" ? positions.elabY
+      : id === "venc" ? positions.vencY
+      : id === "name" ? positions.nameY
+      : id === "isp" ? positions.ispY
+      : positions.traceCodeY;
     dragStartRef.current = { mouseY: e.clientY, startY: yMm };
   }, [positions]);
 
@@ -158,9 +200,12 @@ function DraggableTracePreview({
         format.height - format.marginBottom - 2,
         dragStartRef.current.startY + dy,
       ));
-      if (dragging === "elab") onPositionsChange({ ...positions, elabY: Math.round(newY * 10) / 10 });
-      else if (dragging === "venc") onPositionsChange({ ...positions, vencY: Math.round(newY * 10) / 10 });
-      else onPositionsChange({ ...positions, nameY: Math.round(newY * 10) / 10 });
+      const rounded = Math.round(newY * 10) / 10;
+      if (dragging === "elab") onPositionsChange({ ...positions, elabY: rounded });
+      else if (dragging === "venc") onPositionsChange({ ...positions, vencY: rounded });
+      else if (dragging === "name") onPositionsChange({ ...positions, nameY: rounded });
+      else if (dragging === "isp") onPositionsChange({ ...positions, ispY: rounded });
+      else onPositionsChange({ ...positions, traceCodeY: rounded });
     };
     const handleUp = () => setDragging(null);
     window.addEventListener("mousemove", handleMove);
@@ -168,18 +213,28 @@ function DraggableTracePreview({
     return () => { window.removeEventListener("mousemove", handleMove); window.removeEventListener("mouseup", handleUp); };
   }, [dragging, positions, scale, format, onPositionsChange]);
 
-  const elements = [
+  const elements: { id: string; y: number; fontSize: number; text: string; color: string }[] = [
     { id: "elab", y: positions.elabY, fontSize: dateFontMm, text: elabText, color: "blue" },
     { id: "venc", y: positions.vencY, fontSize: dateFontMm, text: vencText, color: "red" },
     { id: "name", y: positions.nameY, fontSize: nameFontMm, text: productName, color: "amber" },
   ];
+  if (ispText) {
+    elements.push({ id: "isp", y: positions.ispY, fontSize: nameFontMm, text: ispText, color: "emerald" });
+  }
+  elements.push({ id: "trace", y: positions.traceCodeY, fontSize: traceFontMm, text: traceCode, color: "purple" });
 
-  // Zebra ^A0N font: cell height includes internal leading. Visible glyph is ~70% of cell height.
   const zebraFontRatio = 0.70;
+
+  const colorMap: Record<string, { border: string; bg: string }> = {
+    blue: { border: "border-blue-400", bg: "bg-blue-50" },
+    red: { border: "border-red-400", bg: "bg-red-50" },
+    amber: { border: "border-amber-400", bg: "bg-amber-50" },
+    emerald: { border: "border-emerald-400", bg: "bg-emerald-50" },
+    purple: { border: "border-purple-400", bg: "bg-purple-50" },
+  };
 
   return (
     <div className="flex flex-col items-center gap-2">
-      {/* Full grid view */}
       <div className="relative bg-slate-100 rounded-lg p-3 border border-slate-200"
         style={{ width: gridW + 24, height: gridH + 24 }}>
         <div className="relative" style={{ width: gridW, height: gridH }} ref={containerRef}>
@@ -193,27 +248,22 @@ function DraggableTracePreview({
                 <div key={`${row}-${col}`}
                   className={`absolute bg-white border ${isFirstLabel ? 'border-blue-300 shadow-md' : 'border-slate-300'} rounded-sm overflow-hidden`}
                   style={{ left: offsetX, top: offsetY, width: singleW, height: singleH }}>
-                  {/* Margin guides only on first label */}
                   {isFirstLabel && (
                     <div className="absolute border border-dashed border-blue-200/50 pointer-events-none"
                       style={{ left: pML, top: pMT, width: usableW, height: usableH }} />
                   )}
 
-                  {/* Text elements */}
                   {elements.map((el) => {
                     const fontPx = el.fontSize * scale * zebraFontRatio;
                     const yPx = el.y * scale;
                     const isActive = dragging === el.id;
-                    const borderCls = el.color === "blue" ? "border-blue-400" : el.color === "red" ? "border-red-400" : "border-amber-400";
-                    const bgCls = isActive
-                      ? (el.color === "blue" ? "bg-blue-50" : el.color === "red" ? "bg-red-50" : "bg-amber-50")
-                      : "";
+                    const colors = colorMap[el.color] || colorMap.blue;
 
                     return (
                       <div key={el.id}
                         onMouseDown={isFirstLabel ? (e) => handleMouseDown(el.id, e) : undefined}
                         className={`absolute text-center font-bold text-slate-800 truncate select-none ${
-                          isFirstLabel ? `cursor-ns-resize border border-transparent hover:${borderCls} ${isActive ? borderCls + ' ' + bgCls : ''}` : ''
+                          isFirstLabel ? `cursor-ns-resize border border-transparent hover:${colors.border} ${isActive ? colors.border + ' ' + colors.bg : ''}` : ''
                         }`}
                         style={{
                           left: pML, top: yPx, width: usableW,
@@ -238,6 +288,15 @@ function DraggableTracePreview({
       </div>
     </div>
   );
+}
+
+// ─── Empleado type ──────────────────────────────────────────────────────────
+interface Empleado {
+  id: number;
+  codigo: string;
+  nombre: string;
+  linea_proceso: string | null;
+  labor: string | null;
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -266,30 +325,79 @@ export function TracePrintModal({
   // ── Font sizes (mm)
   const [dateFontMm, setDateFontMm] = useState(4);
   const [nameFontMm, setNameFontMm] = useState(3);
+  const [traceFontMm, setTraceFontMm] = useState(3);
   const [copies, setCopies] = useState(1);
   const clampFont = (v: number) => Math.max(1.5, Math.min(8, Math.round(v * 2) / 2));
+
+  // ── Operador state
+  const [empleados, setEmpleados] = useState<Empleado[]>([]);
+  const [selectedOperadorId, setSelectedOperadorId] = useState<number | null>(null);
+  const [lineaProceso, setLineaProceso] = useState("");
+  const [useCustomLine, setUseCustomLine] = useState(false);
+
+  const selectedOperador = empleados.find((e) => e.id === selectedOperadorId) || null;
+
+  // Fetch empleados
+  useEffect(() => {
+    fetch("/api/empleados")
+      .then((r) => r.json())
+      .then((data: Empleado[]) => setEmpleados(data))
+      .catch(() => {});
+  }, []);
+
+  // Auto-fill line when operator changes
+  useEffect(() => {
+    if (selectedOperador) {
+      if (!useCustomLine) {
+        setLineaProceso(selectedOperador.linea_proceso || "");
+      }
+      // If operator has no line, force custom mode
+      if (!selectedOperador.linea_proceso) {
+        setUseCustomLine(true);
+      }
+    }
+  }, [selectedOperadorId, selectedOperador, useCustomLine]);
+
+  // Build trace code
+  const traceCode = useMemo(() => {
+    if (!selectedOperador) return "---";
+    return buildTraceCode(elabDate, selectedOperador.codigo, lineaProceso);
+  }, [elabDate, selectedOperador, lineaProceso]);
+
+  // ISP
+  const hasIsp = product.isp && product.isp.trim().length > 0;
+  const ispText = hasIsp ? `ISP: ${product.isp!.trim()}` : null;
 
   // ── Positions (mm from top)
   const calcDefaults = useCallback((fmt: LabelFormat): TracePositions => {
     const usableH = fmt.height - fmt.marginTop - fmt.marginBottom;
-    const spacing = usableH / 4;
+    const lines = hasIsp ? 5 : 4;
+    const spacing = usableH / (lines + 1);
     return {
       elabY: fmt.marginTop + spacing - dateFontMm / 2,
       vencY: fmt.marginTop + spacing * 2 - dateFontMm / 2,
       nameY: fmt.marginTop + spacing * 3 - nameFontMm / 2,
+      ispY: hasIsp ? fmt.marginTop + spacing * 4 - nameFontMm / 2 : fmt.marginTop + spacing * 3.5,
+      traceCodeY: fmt.marginTop + spacing * (hasIsp ? 5 : 4) - traceFontMm / 2,
     };
-  }, [dateFontMm, nameFontMm]);
+  }, [dateFontMm, nameFontMm, traceFontMm, hasIsp]);
 
   const [positions, setPositions] = useState<TracePositions>(() => {
     const saved = loadTraceLayout(initialFormatId);
-    return saved || calcDefaults(currentFormat);
+    // If saved layout doesn't have new fields, recalculate
+    if (saved && saved.ispY !== undefined && saved.traceCodeY !== undefined) return saved;
+    return calcDefaults(currentFormat);
   });
   const [layoutSaved, setLayoutSaved] = useState(false);
 
   // Load saved layout when format changes
   useEffect(() => {
     const saved = loadTraceLayout(activeFormatId);
-    setPositions(saved || calcDefaults(currentFormat));
+    if (saved && saved.ispY !== undefined && saved.traceCodeY !== undefined) {
+      setPositions(saved);
+    } else {
+      setPositions(calcDefaults(currentFormat));
+    }
     setLayoutSaved(false);
   }, [activeFormatId, currentFormat, calcDefaults]);
 
@@ -334,8 +442,8 @@ export function TracePrintModal({
 
   // ── ZPL
   const zplCode = useMemo(() =>
-    generateTraceZpl(currentFormat, elabDate, vencDate, product.item_name, dateFontMm, nameFontMm, copies, positions),
-    [currentFormat, elabDate, vencDate, product.item_name, dateFontMm, nameFontMm, copies, positions]
+    generateTraceZpl(currentFormat, elabDate, vencDate, product.item_name, product.isp, traceCode, dateFontMm, nameFontMm, traceFontMm, copies, positions),
+    [currentFormat, elabDate, vencDate, product.item_name, product.isp, traceCode, dateFontMm, nameFontMm, traceFontMm, copies, positions]
   );
 
   const handleCopyZpl = () => { navigator.clipboard.writeText(zplCode); setCopied(true); setTimeout(() => setCopied(false), 2000); };
@@ -349,6 +457,8 @@ export function TracePrintModal({
 
   const handlePrint = async () => {
     if (!selectedSystemPrinter) { onShowToast?.("Selecciona una impresora", "error"); return; }
+    if (!selectedOperador) { onShowToast?.("Selecciona un operador", "error"); return; }
+    if (!lineaProceso.trim()) { onShowToast?.("Ingresa la línea de proceso", "error"); return; }
     setUsbPrinting(true);
     try {
       const res = await fetch("/api/print/usb", {
@@ -362,6 +472,7 @@ export function TracePrintModal({
     finally { setUsbPrinting(false); }
   };
 
+  const canPrint = !!selectedSystemPrinter && !!selectedOperador && !!lineaProceso.trim();
   const isCustom = JSON.stringify(positions) !== JSON.stringify(calcDefaults(currentFormat));
 
   return (
@@ -434,6 +545,105 @@ export function TracePrintModal({
                 </div>
               </div>
 
+              {/* ISP info */}
+              {hasIsp && (
+                <div className="flex items-center gap-2 px-2.5 py-2 bg-emerald-50 rounded-lg border border-emerald-200">
+                  <span className="text-emerald-500 text-sm flex-shrink-0">🏷️</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[8px] font-semibold text-emerald-600 uppercase">ISP del producto</div>
+                    <div className="text-xs font-bold text-emerald-800">{product.isp}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Operador + Línea de Proceso ── */}
+              <div>
+                <h3 className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                  <User className="w-3 h-3" />
+                  Operador y Línea
+                </h3>
+                <div className="space-y-2">
+                  {/* Operator selector */}
+                  <div className="px-2.5 py-2 bg-white rounded-lg border border-slate-200">
+                    <div className="text-[8px] font-semibold text-slate-400 uppercase mb-1">Operador</div>
+                    <select
+                      value={selectedOperadorId ?? ""}
+                      onChange={(e) => {
+                        const id = Number(e.target.value);
+                        setSelectedOperadorId(id || null);
+                        setUseCustomLine(false);
+                      }}
+                      className="w-full text-xs font-semibold text-slate-800 bg-transparent outline-none cursor-pointer"
+                    >
+                      <option value="">— Seleccionar operador —</option>
+                      {empleados.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.codigo} - {emp.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Line de proceso */}
+                  {selectedOperador && (
+                    <div className="px-2.5 py-2 bg-white rounded-lg border border-slate-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="text-[8px] font-semibold text-slate-400 uppercase">Línea de proceso</div>
+                        {selectedOperador.linea_proceso && (
+                          <label className="flex items-center gap-1 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={useCustomLine}
+                              onChange={(e) => {
+                                setUseCustomLine(e.target.checked);
+                                if (!e.target.checked && selectedOperador.linea_proceso) {
+                                  setLineaProceso(selectedOperador.linea_proceso);
+                                }
+                              }}
+                              className="w-3 h-3 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-[8px] text-slate-500">Cambiar línea</span>
+                          </label>
+                        )}
+                      </div>
+                      {useCustomLine || !selectedOperador.linea_proceso ? (
+                        <input
+                          type="text"
+                          value={lineaProceso}
+                          onChange={(e) => setLineaProceso(e.target.value)}
+                          placeholder="Ej: L1, L2, L3..."
+                          className="w-full text-xs font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded px-2 py-1 outline-none focus:border-blue-400"
+                        />
+                      ) : (
+                        <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          {lineaProceso || "Sin línea asignada"}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* No operator warning */}
+                  {!selectedOperador && (
+                    <div className="flex items-start gap-2 px-2.5 py-2 bg-red-50 border border-red-200 rounded-lg">
+                      <span className="text-red-400 text-sm leading-none mt-0.5">⚠️</span>
+                      <p className="text-[9px] text-red-600 font-medium">Operador obligatorio para imprimir</p>
+                    </div>
+                  )}
+
+                  {/* Trace code preview */}
+                  {selectedOperador && (
+                    <div className="px-2.5 py-2 bg-purple-50 rounded-lg border border-purple-200">
+                      <div className="text-[8px] font-semibold text-purple-500 uppercase mb-1">Código de trazabilidad</div>
+                      <div className="text-sm font-bold text-purple-800 tracking-wide font-mono">{traceCode}</div>
+                      <div className="text-[8px] text-purple-400 mt-1">
+                        S{String(getISOWeek(elabDate)).padStart(2, "0")}=Semana · {getDayLetter(elabDate)}=Día · {selectedOperador.codigo}=Op · {lineaProceso || "XX"}=Línea
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Font sizes */}
               <div>
                 <h3 className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">Fuente</h3>
@@ -441,6 +651,7 @@ export function TracePrintModal({
                   {[
                     { label: "Fechas", val: dateFontMm, set: setDateFontMm },
                     { label: "Nombre", val: nameFontMm, set: setNameFontMm },
+                    { label: "Código", val: traceFontMm, set: setTraceFontMm },
                   ].map((item) => (
                     <div key={item.label} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white rounded-lg border border-slate-200">
                       <span className="text-[9px] text-slate-500 font-medium uppercase flex-1">{item.label}</span>
@@ -502,9 +713,12 @@ export function TracePrintModal({
                   onPositionsChange={handlePositionsChange}
                   dateFontMm={dateFontMm}
                   nameFontMm={nameFontMm}
+                  traceFontMm={traceFontMm}
                   elabText={`ELAB: ${formatDDMMYYYY(elabDate)}`}
                   vencText={`VENC: ${formatDDMMYYYY(vencDate)}`}
                   productName={product.item_name}
+                  ispText={ispText}
+                  traceCode={traceCode}
                 />
               </div>
               {currentFormat.labelsPerRow > 1 && (
@@ -555,7 +769,7 @@ export function TracePrintModal({
 
               {/* Print & Download */}
               <div className="flex flex-col gap-1.5">
-                <button onClick={handlePrint} disabled={usbPrinting || !selectedSystemPrinter}
+                <button onClick={handlePrint} disabled={usbPrinting || !canPrint}
                   className="w-full flex items-center justify-center px-4 py-2.5 outline-none rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-colors border border-emerald-500 shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                   <Printer className="w-4 h-4 mr-2" />
                   <span>{usbPrinting ? "Enviando..." : "🖨️ Imprimir Trazabilidad"}</span>
@@ -586,6 +800,7 @@ export function TracePrintModal({
         <div className="px-5 py-2.5 border-t border-slate-200 bg-slate-50 flex justify-between items-center">
           <div className="text-[10px] text-slate-400">
             <span>{currentFormat.width}×{currentFormat.height}mm · {currentFormat.dpi} DPI · {currentFormat.labelsPerRow}col</span>
+            {hasIsp && <span className="text-emerald-500 ml-2">● ISP activo</span>}
           </div>
           <button onClick={onClose}
             className="px-4 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors shadow-sm cursor-pointer">
