@@ -10,7 +10,7 @@
  */
 
 const LOCAL_SERVER_URL = "http://localhost:3000";
-const PING_TIMEOUT = 2000; // 2 seconds
+const PING_TIMEOUT = 3000; // 3 seconds
 
 /** Check if we're running on Cloud (not localhost) */
 export function isRunningOnCloud(): boolean {
@@ -29,14 +29,16 @@ export async function isLocalServerAvailable(): Promise<boolean> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), PING_TIMEOUT);
 
+    // Simple GET to check if server is alive
     const res = await fetch(`${LOCAL_SERVER_URL}/api/system-printers`, {
       signal: controller.signal,
-      mode: "cors",
     });
 
     clearTimeout(timeout);
+    console.log("[PrintBridge] Local server detected:", res.ok, res.status);
     return res.ok;
-  } catch {
+  } catch (err) {
+    console.log("[PrintBridge] Local server not available:", err);
     return false;
   }
 }
@@ -48,10 +50,14 @@ export async function fetchPrinters(
   const baseUrl = useLocalBridge ? LOCAL_SERVER_URL : "";
 
   try {
+    console.log(`[PrintBridge] Fetching printers from: ${baseUrl || "(same origin)"}`);
     const res = await fetch(`${baseUrl}/api/system-printers`);
     if (!res.ok) return [];
-    return await res.json();
-  } catch {
+    const printers = await res.json();
+    console.log(`[PrintBridge] Found ${printers.length} printers`);
+    return printers;
+  } catch (err) {
+    console.log("[PrintBridge] Error fetching printers:", err);
     return [];
   }
 }
@@ -65,6 +71,7 @@ export async function sendPrintJob(
   const baseUrl = useLocalBridge ? LOCAL_SERVER_URL : "";
 
   try {
+    console.log(`[PrintBridge] Sending print job to: ${baseUrl || "(same origin)"} → ${printerName}`);
     const res = await fetch(`${baseUrl}/api/print/usb`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -76,6 +83,6 @@ export async function sendPrintJob(
     }
     return { ok: false, message: data.error || "Error de impresión" };
   } catch (e: any) {
-    return { ok: false, message: "Error de conexión: " + e.message };
+    return { ok: false, message: "Error de conexión con servidor local: " + e.message };
   }
 }
