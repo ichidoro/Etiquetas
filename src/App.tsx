@@ -817,13 +817,13 @@ export default function App() {
                               <td className="px-3 py-3 whitespace-nowrap text-sm font-semibold text-slate-800">
                                 {p.sku}
                               </td>
-                              <td className="px-3 py-3 text-sm text-slate-500 max-w-[200px] truncate">
+                              <td className="px-3 py-3 text-sm text-slate-500 whitespace-nowrap">
                                 {p.item_name}
                               </td>
-                              <td className="px-3 py-3 text-sm text-slate-500 max-w-[120px] truncate">
+                              <td className="px-3 py-3 text-sm text-slate-500 whitespace-nowrap">
                                 {p.business_line || "-"}
                               </td>
-                              <td className="px-3 py-3 text-sm text-slate-500 max-w-[100px] truncate">
+                              <td className="px-3 py-3 text-sm text-slate-500 whitespace-nowrap">
                                 {p.family || "-"}
                               </td>
                               <td className="px-3 py-3 whitespace-nowrap">
