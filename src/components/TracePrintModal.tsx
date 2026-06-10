@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { X, Printer, Download, Copy, Check, Code, Minus, Plus, Calendar, Move, RotateCcw, Save, User, Settings2 } from "lucide-react";
+import { X, Printer, Download, Copy, Check, Code, Minus, Plus, Calendar, Move, RotateCcw, Save, User, Settings2, Usb } from "lucide-react";
 import { Product, LabelFormat } from "../types";
+import { isWebUSBSupported, getAlreadyPairedPrinters, requestUSBPrinter, sendZPLviaUSB, forgetUSBPrinter, getPairedDevice } from "../utils/webusb";
 
 // ─── localStorage helpers ───────────────────────────────────────────────────
 const PRINTER_STORAGE_KEY = "zebra-default-printer";
@@ -422,21 +423,43 @@ export function TracePrintModal({
   const [usbPrinting, setUsbPrinting] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // WebUSB state
+  const [webUsbDevice, setWebUsbDevice] = useState<USBDevice | null>(null);
+  const [webUsbSupported] = useState(isWebUSBSupported());
+  const [useWebUsb, setUseWebUsb] = useState(false);
+
   useEffect(() => {
     const savedPrinter = loadDefaultPrinter();
     fetch("/api/system-printers")
       .then((r) => r.json())
       .then((printers: any[]) => {
         setSystemPrinters(printers);
-        if (savedPrinter && printers.some((p) => p.Name === savedPrinter)) {
-          setSelectedSystemPrinter(savedPrinter);
+        if (printers.length === 0 && webUsbSupported) {
+          // No server printers → switch to WebUSB mode
+          setUseWebUsb(true);
+          // Check for already paired WebUSB devices
+          getAlreadyPairedPrinters().then((paired) => {
+            if (paired.length > 0) setWebUsbDevice(paired[0]);
+          });
         } else {
-          const zebra = printers.find((p) => p.DriverName?.toLowerCase().includes("zebra") || p.Name?.toLowerCase().includes("zebra"));
-          if (zebra) setSelectedSystemPrinter(zebra.Name);
-          else if (printers.length > 0) setSelectedSystemPrinter(printers[0].Name);
+          if (savedPrinter && printers.some((p) => p.Name === savedPrinter)) {
+            setSelectedSystemPrinter(savedPrinter);
+          } else {
+            const zebra = printers.find((p) => p.DriverName?.toLowerCase().includes("zebra") || p.Name?.toLowerCase().includes("zebra"));
+            if (zebra) setSelectedSystemPrinter(zebra.Name);
+            else if (printers.length > 0) setSelectedSystemPrinter(printers[0].Name);
+          }
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        // Server unreachable (Cloud Run) → switch to WebUSB
+        if (webUsbSupported) {
+          setUseWebUsb(true);
+          getAlreadyPairedPrinters().then((paired) => {
+            if (paired.length > 0) setWebUsbDevice(paired[0]);
+          });
+        }
+      });
   }, []);
 
   const handlePrinterChange = (name: string) => { setSelectedSystemPrinter(name); saveDefaultPrinter(name); };
@@ -457,23 +480,57 @@ export function TracePrintModal({
   };
 
   const handlePrint = async () => {
-    if (!selectedSystemPrinter) { onShowToast?.("Selecciona una impresora", "error"); return; }
     if (!selectedOperador) { onShowToast?.("Selecciona un operador", "error"); return; }
     if (!lineaProceso.trim()) { onShowToast?.("Ingresa la línea de proceso", "error"); return; }
-    setUsbPrinting(true);
-    try {
-      const res = await fetch("/api/print/usb", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ zpl: zplCode, printerName: selectedSystemPrinter }),
-      });
-      const data = await res.json();
-      if (res.ok) onShowToast?.(`✅ ${data.message}`, "success");
-      else onShowToast?.(data.error || "Error de impresión", "error");
-    } catch (e: any) { onShowToast?.("Error: " + e.message, "error"); }
-    finally { setUsbPrinting(false); }
+
+    if (useWebUsb) {
+      // WebUSB printing
+      if (!webUsbDevice) { onShowToast?.("Conecta una impresora USB primero", "error"); return; }
+      setUsbPrinting(true);
+      try {
+        await sendZPLviaUSB(webUsbDevice, zplCode);
+        onShowToast?.(`✅ ZPL enviado a ${webUsbDevice.productName || "impresora USB"} vía WebUSB`, "success");
+      } catch (e: any) {
+        onShowToast?.(e.message || "Error WebUSB", "error");
+        setWebUsbDevice(null); // Reset on error
+      } finally { setUsbPrinting(false); }
+    } else {
+      // Server-side printing
+      if (!selectedSystemPrinter) { onShowToast?.("Selecciona una impresora", "error"); return; }
+      setUsbPrinting(true);
+      try {
+        const res = await fetch("/api/print/usb", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ zpl: zplCode, printerName: selectedSystemPrinter }),
+        });
+        const data = await res.json();
+        if (res.ok) onShowToast?.(`✅ ${data.message}`, "success");
+        else onShowToast?.(data.error || "Error de impresión", "error");
+      } catch (e: any) { onShowToast?.("Error: " + e.message, "error"); }
+      finally { setUsbPrinting(false); }
+    }
   };
 
-  const canPrint = !!selectedSystemPrinter && !!selectedOperador && !!lineaProceso.trim();
+  const handleConnectWebUsb = async () => {
+    try {
+      const device = await requestUSBPrinter();
+      if (device) {
+        setWebUsbDevice(device);
+        onShowToast?.(`✅ Conectada: ${device.productName || "Impresora USB"}`, "success");
+      }
+    } catch (e: any) {
+      onShowToast?.(e.message || "Error al conectar", "error");
+    }
+  };
+
+  const handleDisconnectWebUsb = async () => {
+    await forgetUSBPrinter();
+    setWebUsbDevice(null);
+  };
+
+  const canPrint = useWebUsb
+    ? !!webUsbDevice && !!selectedOperador && !!lineaProceso.trim()
+    : !!selectedSystemPrinter && !!selectedOperador && !!lineaProceso.trim();
   const isCustom = JSON.stringify(positions) !== JSON.stringify(calcDefaults(currentFormat));
 
   return (
@@ -754,17 +811,45 @@ export function TracePrintModal({
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider">Impresora</label>
-                  {systemPrinters.length > 0 && selectedSystemPrinter === loadDefaultPrinter() && (
-                    <span className="text-[8px] text-emerald-400 font-medium">★ predeterminada</span>
+                  {useWebUsb ? (
+                    <span className="text-[8px] text-blue-400 font-medium flex items-center gap-1">
+                      <Usb className="w-3 h-3" /> WebUSB
+                    </span>
+                  ) : (
+                    systemPrinters.length > 0 && selectedSystemPrinter === loadDefaultPrinter() && (
+                      <span className="text-[8px] text-emerald-400 font-medium">★ predeterminada</span>
+                    )
                   )}
                 </div>
-                {systemPrinters.length > 0 ? (
-                  <select className="w-full rounded-md border border-slate-600 bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm p-2 text-white outline-none cursor-pointer"
-                    value={selectedSystemPrinter} onChange={(e) => handlePrinterChange(e.target.value)}>
-                    {systemPrinters.map((p) => (<option key={p.Name} value={p.Name}>{p.Name} ({p.PortName})</option>))}
-                  </select>
+                {useWebUsb ? (
+                  // WebUSB mode
+                  webUsbDevice ? (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 rounded-md border border-emerald-600 bg-emerald-900/30 text-sm p-2 text-emerald-300 flex items-center gap-2">
+                        <Usb className="w-4 h-4" />
+                        <span className="truncate">{webUsbDevice.productName || "Impresora USB"}</span>
+                      </div>
+                      <button onClick={handleDisconnectWebUsb} className="p-2 rounded-md border border-slate-600 bg-slate-700 hover:bg-red-700 text-slate-400 hover:text-white transition-colors" title="Desconectar">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={handleConnectWebUsb}
+                      className="w-full rounded-md border-2 border-dashed border-blue-500 bg-blue-900/20 hover:bg-blue-900/40 text-sm p-2.5 text-blue-300 hover:text-blue-200 transition-colors flex items-center justify-center gap-2 cursor-pointer">
+                      <Usb className="w-4 h-4" />
+                      <span>Conectar Impresora USB</span>
+                    </button>
+                  )
                 ) : (
-                  <div className="w-full rounded-md border border-slate-600 bg-slate-700 text-sm p-2 text-slate-500 italic">Sin impresoras</div>
+                  // Server-side mode
+                  systemPrinters.length > 0 ? (
+                    <select className="w-full rounded-md border border-slate-600 bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm p-2 text-white outline-none cursor-pointer"
+                      value={selectedSystemPrinter} onChange={(e) => handlePrinterChange(e.target.value)}>
+                      {systemPrinters.map((p) => (<option key={p.Name} value={p.Name}>{p.Name} ({p.PortName})</option>))}
+                    </select>
+                  ) : (
+                    <div className="w-full rounded-md border border-slate-600 bg-slate-700 text-sm p-2 text-slate-500 italic">Sin impresoras detectadas</div>
+                  )
                 )}
               </div>
 

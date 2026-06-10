@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { X, Printer, Code, Copy, Check, Download, RotateCcw, Type, Barcode, Save, Minus, Plus } from "lucide-react";
+import { X, Printer, Code, Copy, Check, Download, RotateCcw, Type, Barcode, Save, Minus, Plus, Usb } from "lucide-react";
 import { Product, LabelFormat, ElementPosition, SavedLabelLayout } from "../types";
 import { DraggableLabelPreview } from "./DraggableLabelPreview";
 import { generateZpl, calculateDefaultPositions } from "../utils/zebra";
+import { isWebUSBSupported, getAlreadyPairedPrinters, requestUSBPrinter, sendZPLviaUSB, forgetUSBPrinter } from "../utils/webusb";
 
 // localStorage keys
 const LAYOUT_STORAGE_KEY = 'zebra-label-layout';
@@ -88,6 +89,11 @@ export function PrintModal({
   const [usbPrinting, setUsbPrinting] = useState(false);
   const [layoutSaved, setLayoutSaved] = useState(!!savedLayout);
 
+  // WebUSB state
+  const [webUsbDevice, setWebUsbDevice] = useState<USBDevice | null>(null);
+  const [webUsbSupported] = useState(isWebUSBSupported());
+  const [useWebUsb, setUseWebUsb] = useState(false);
+
   const currentFormat = {
     ...baseLabelFormat,
     showName: selectedParts.name,
@@ -159,16 +165,29 @@ export function PrintModal({
       .then(r => r.json())
       .then((printers: any[]) => {
         setSystemPrinters(printers);
-        // Priority: saved default > zebra auto-detect > first printer
-        if (savedPrinter && printers.some(p => p.Name === savedPrinter)) {
-          setSelectedSystemPrinter(savedPrinter);
+        if (printers.length === 0 && webUsbSupported) {
+          setUseWebUsb(true);
+          getAlreadyPairedPrinters().then((paired) => {
+            if (paired.length > 0) setWebUsbDevice(paired[0]);
+          });
         } else {
-          const zebra = printers.find(p => p.DriverName?.toLowerCase().includes('zebra') || p.Name?.toLowerCase().includes('zebra'));
-          if (zebra) setSelectedSystemPrinter(zebra.Name);
-          else if (printers.length > 0) setSelectedSystemPrinter(printers[0].Name);
+          if (savedPrinter && printers.some(p => p.Name === savedPrinter)) {
+            setSelectedSystemPrinter(savedPrinter);
+          } else {
+            const zebra = printers.find(p => p.DriverName?.toLowerCase().includes('zebra') || p.Name?.toLowerCase().includes('zebra'));
+            if (zebra) setSelectedSystemPrinter(zebra.Name);
+            else if (printers.length > 0) setSelectedSystemPrinter(printers[0].Name);
+          }
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (webUsbSupported) {
+          setUseWebUsb(true);
+          getAlreadyPairedPrinters().then((paired) => {
+            if (paired.length > 0) setWebUsbDevice(paired[0]);
+          });
+        }
+      });
   }, []);
 
   // Save printer as default when changed
@@ -207,28 +226,46 @@ export function PrintModal({
   };
 
   const handleUsbSystemPrint = async () => {
-    if (!selectedSystemPrinter) {
-      onShowToast?.('Selecciona una impresora del sistema', 'error');
-      return;
+    if (useWebUsb) {
+      if (!webUsbDevice) { onShowToast?.('Conecta una impresora USB primero', 'error'); return; }
+      setUsbPrinting(true);
+      try {
+        await sendZPLviaUSB(webUsbDevice, zplCode);
+        onShowToast?.(`✅ ZPL enviado a ${webUsbDevice.productName || 'impresora USB'} vía WebUSB`, 'success');
+      } catch (e: any) {
+        onShowToast?.(e.message || 'Error WebUSB', 'error');
+        setWebUsbDevice(null);
+      } finally { setUsbPrinting(false); }
+    } else {
+      if (!selectedSystemPrinter) { onShowToast?.('Selecciona una impresora del sistema', 'error'); return; }
+      setUsbPrinting(true);
+      try {
+        const res = await fetch('/api/print/usb', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ zpl: zplCode, printerName: selectedSystemPrinter }),
+        });
+        const data = await res.json();
+        if (res.ok) { onShowToast?.(`✅ ${data.message}`, 'success'); }
+        else { onShowToast?.(data.error || 'Error de impresión', 'error'); }
+      } catch (e: any) { onShowToast?.('Error de conexión: ' + e.message, 'error'); }
+      finally { setUsbPrinting(false); }
     }
-    setUsbPrinting(true);
+  };
+
+  const handleConnectWebUsb = async () => {
     try {
-      const res = await fetch('/api/print/usb', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ zpl: zplCode, printerName: selectedSystemPrinter }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        onShowToast?.(`✅ ${data.message}`, 'success');
-      } else {
-        onShowToast?.(data.error || 'Error de impresión', 'error');
+      const device = await requestUSBPrinter();
+      if (device) {
+        setWebUsbDevice(device);
+        onShowToast?.(`✅ Conectada: ${device.productName || 'Impresora USB'}`, 'success');
       }
-    } catch (e: any) {
-      onShowToast?.('Error de conexión: ' + e.message, 'error');
-    } finally {
-      setUsbPrinting(false);
-    }
+    } catch (e: any) { onShowToast?.(e.message || 'Error al conectar', 'error'); }
+  };
+
+  const handleDisconnectWebUsb = async () => {
+    await forgetUSBPrinter();
+    setWebUsbDevice(null);
   };
 
   // Element definitions
@@ -404,34 +441,62 @@ export function PrintModal({
                 </div>
               </div>
 
-              {/* Printer — with "set as default" badge */}
-              {systemPrinters.length > 0 && (
-                <div className="mb-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Impresora</label>
-                    {selectedSystemPrinter === loadDefaultPrinter() && (
+              {/* Printer — with WebUSB fallback */}
+              <div className="mb-3">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Impresora</label>
+                  {useWebUsb ? (
+                    <span className="text-[9px] text-blue-400 font-medium flex items-center gap-1">
+                      <Usb className="w-3 h-3" /> WebUSB
+                    </span>
+                  ) : (
+                    selectedSystemPrinter === loadDefaultPrinter() && systemPrinters.length > 0 && (
                       <span className="text-[9px] text-emerald-400 font-medium">★ predeterminada</span>
-                    )}
-                  </div>
-                  <select
-                    className="w-full rounded-md border border-slate-600 bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm p-2 text-white outline-none cursor-pointer"
-                    value={selectedSystemPrinter}
-                    onChange={(e) => handlePrinterChange(e.target.value)}
-                  >
-                    {systemPrinters.map((p) => (
-                      <option key={p.Name} value={p.Name}>
-                        {p.Name} ({p.PortName})
-                      </option>
-                    ))}
-                  </select>
+                    )
+                  )}
                 </div>
-              )}
+                {useWebUsb ? (
+                  webUsbDevice ? (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 rounded-md border border-emerald-600 bg-emerald-900/30 text-sm p-2 text-emerald-300 flex items-center gap-2">
+                        <Usb className="w-4 h-4" />
+                        <span className="truncate">{webUsbDevice.productName || 'Impresora USB'}</span>
+                      </div>
+                      <button onClick={handleDisconnectWebUsb} className="p-2 rounded-md border border-slate-600 bg-slate-700 hover:bg-red-700 text-slate-400 hover:text-white transition-colors" title="Desconectar">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={handleConnectWebUsb}
+                      className="w-full rounded-md border-2 border-dashed border-blue-500 bg-blue-900/20 hover:bg-blue-900/40 text-sm p-2.5 text-blue-300 hover:text-blue-200 transition-colors flex items-center justify-center gap-2 cursor-pointer">
+                      <Usb className="w-4 h-4" />
+                      <span>Conectar Impresora USB</span>
+                    </button>
+                  )
+                ) : (
+                  systemPrinters.length > 0 ? (
+                    <select
+                      className="w-full rounded-md border border-slate-600 bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm p-2 text-white outline-none cursor-pointer"
+                      value={selectedSystemPrinter}
+                      onChange={(e) => handlePrinterChange(e.target.value)}
+                    >
+                      {systemPrinters.map((p) => (
+                        <option key={p.Name} value={p.Name}>
+                          {p.Name} ({p.PortName})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="w-full rounded-md border border-slate-600 bg-slate-700 text-sm p-2 text-slate-500 italic">Sin impresoras detectadas</div>
+                  )
+                )}
+              </div>
 
               {/* Print button */}
               <div className="space-y-2 mb-3">
                 <button
                   onClick={handleUsbSystemPrint}
-                  disabled={usbPrinting || !selectedSystemPrinter}
+                  disabled={usbPrinting || (useWebUsb ? !webUsbDevice : !selectedSystemPrinter)}
                   className="w-full flex items-center justify-center px-4 py-2.5 outline-none rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-colors border border-emerald-500 shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Printer className="w-4 h-4 mr-2" />
