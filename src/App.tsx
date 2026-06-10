@@ -1587,10 +1587,9 @@ export default function App() {
                           <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm flex-shrink-0">3</div>
                           <div className="flex-1">
                             <h4 className="font-semibold text-slate-800 text-sm">Descargar y ejecutar el instalador</h4>
-                            <p className="text-xs text-slate-500 mb-2">Instala todo, configura el inicio automático y arranca el servidor. Solo se ejecuta una vez.</p>
+                            <p className="text-xs text-slate-500 mb-2">Un solo archivo. Instala todo, configura inicio automático y arranca el servidor.</p>
                             <button
                               onClick={() => {
-                                const vbs = `' ZebraBridge Pro - Servicio de Impresion Local\r\nDim WshShell, fso, appPath, scriptDir\r\nSet WshShell = CreateObject("WScript.Shell")\r\nSet fso = CreateObject("Scripting.FileSystemObject")\r\nscriptDir = fso.GetParentFolderName(WScript.ScriptFullName)\r\nIf InStr(LCase(scriptDir), "startup") > 0 Then\r\n  Dim paths, fp\r\n  paths = Array(WshShell.ExpandEnvironmentStrings("%USERPROFILE%") & "\\Etiquetas", WshShell.ExpandEnvironmentStrings("%USERPROFILE%") & "\\Desktop\\Etiquetas", WshShell.ExpandEnvironmentStrings("%USERPROFILE%") & "\\Documents\\Etiquetas", "C:\\Etiquetas")\r\n  appPath = ""\r\n  For Each fp In paths\r\n    If fso.FolderExists(fp) Then\r\n      If fso.FileExists(fp & "\\package.json") Then appPath = fp : Exit For\r\n    End If\r\n  Next\r\n  If appPath = "" Then WScript.Quit\r\nElse\r\n  appPath = scriptDir\r\nEnd If\r\nIf Not fso.FileExists(appPath & "\\package.json") Then WScript.Quit\r\nWshShell.Run "cmd /c cd /d """ & appPath & """ && npm run dev", 0, False\r\n`;
                                 const bat = `@echo off
 chcp 65001 >nul 2>&1
 echo ============================================
@@ -1640,9 +1639,20 @@ call npm install
 
 echo.
 echo Configurando inicio automatico con Windows...
-set "STARTUP=%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"
-copy /Y "zebra_servicio.vbs" "%STARTUP%\\zebra_servicio.vbs" >nul 2>&1
-if %errorlevel% equ 0 (
+set "VBSPATH=%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\zebra_servicio.vbs"
+set "APPDIR=%cd%"
+
+> "%VBSPATH%" (
+echo Dim WshShell, fso
+echo Set WshShell = CreateObject^("WScript.Shell"^)
+echo Set fso = CreateObject^("Scripting.FileSystemObject"^)
+echo Dim appPath
+echo appPath = "%APPDIR%"
+echo If Not fso.FileExists^(appPath ^& "\\package.json"^) Then WScript.Quit
+echo WshShell.Run "cmd /c cd /d """ ^& appPath ^& """ ^&^& npm run dev", 0, False
+)
+
+if exist "%VBSPATH%" (
     echo [OK] El servidor arrancara automaticamente al encender el PC
 ) else (
     echo [AVISO] No se pudo configurar inicio automatico
@@ -1651,11 +1661,11 @@ if %errorlevel% equ 0 (
 echo.
 echo ============================================
 echo   INSTALACION COMPLETA
-echo   
+echo.
 echo   El servidor de impresion se iniciara
 echo   AUTOMATICAMENTE cada vez que enciendas
 echo   este computador.
-echo   
+echo.
 echo   Abre en tu navegador:
 echo   https://zebra-bridge-pro-684852789183.us-central1.run.app
 echo ============================================
@@ -1663,36 +1673,22 @@ echo.
 echo Iniciando servidor por primera vez...
 call npm run dev
 `;
-                                // Download both files
-                                const batBlob = new Blob([bat], { type: 'application/x-bat' });
-                                const batUrl = URL.createObjectURL(batBlob);
+                                const blob = new Blob([bat], { type: 'application/x-bat' });
+                                const url = URL.createObjectURL(blob);
                                 const a = document.createElement('a');
-                                a.href = batUrl;
+                                a.href = url;
                                 a.download = 'instalar_zebra.bat';
                                 document.body.appendChild(a);
                                 a.click();
                                 document.body.removeChild(a);
-                                URL.revokeObjectURL(batUrl);
-
-                                // Also download the VBS service file
-                                setTimeout(() => {
-                                  const vbsBlob = new Blob([vbs], { type: 'application/octet-stream' });
-                                  const vbsUrl = URL.createObjectURL(vbsBlob);
-                                  const b = document.createElement('a');
-                                  b.href = vbsUrl;
-                                  b.download = 'zebra_servicio.vbs';
-                                  document.body.appendChild(b);
-                                  b.click();
-                                  document.body.removeChild(b);
-                                  URL.revokeObjectURL(vbsUrl);
-                                  showToast('Descargados: instalar_zebra.bat + zebra_servicio.vbs', 'success');
-                                }, 500);
+                                URL.revokeObjectURL(url);
+                                showToast('Descargado: instalar_zebra.bat', 'success');
                               }}
                               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
                             >
-                              <Download className="w-4 h-4" /> Descargar Instalador (2 archivos)
+                              <Download className="w-4 h-4" /> Descargar instalar_zebra.bat
                             </button>
-                            <p className="text-[10px] text-slate-400 mt-1">Coloca ambos archivos en la misma carpeta y ejecuta <strong>instalar_zebra.bat</strong></p>
+                            <p className="text-[10px] text-slate-400 mt-1">Haz clic derecho → Ejecutar como administrador</p>
                           </div>
                         </div>
 
