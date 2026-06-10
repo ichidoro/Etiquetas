@@ -779,7 +779,7 @@ export default function App() {
                           </th>
                           <th
                             scope="col"
-                            className="relative px-3 py-3 border-b-2 border-slate-200"
+                            className="sticky right-0 z-10 px-3 py-3 border-b-2 border-slate-200 bg-slate-50"
                           >
                             <span className="sr-only">Acciones</span>
                           </th>
@@ -862,7 +862,7 @@ export default function App() {
                                   {p.activo !== false ? 'Activo' : 'Inactivo'}
                                 </span>
                               </td>
-                              <td className="px-3 py-3 whitespace-nowrap text-right text-sm font-medium">
+                              <td className="sticky right-0 z-10 px-3 py-3 whitespace-nowrap text-right text-sm font-medium bg-white">
                                 <div className="flex items-center justify-end space-x-2">
                                   <button
                                     onClick={() => setPrintingProduct(p)}
