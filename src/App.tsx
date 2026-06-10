@@ -17,6 +17,9 @@ import {
   ClipboardList,
   Users,
   PenTool,
+  Monitor,
+  Globe,
+  Copy,
 } from "lucide-react";
 import { Product, LabelFormat } from "./types";
 import { ProductForm } from "./components/ProductForm";
@@ -45,7 +48,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState<
     "maestro" | "formatos" | "historial" | "configuracion" | "disenador"
   >("maestro");
-  const [configTab, setConfigTab] = useState<"turso" | "operadores" | "impresoras">("operadores");
+  const [configTab, setConfigTab] = useState<"turso" | "operadores" | "impresoras" | "instalacion">("operadores");
   const [dbStatus, setDbStatus] = useState<{ dbType: string; dbUrl: string }>({
     dbType: "local-sqlite",
     dbUrl: "file:local.db",
@@ -1409,6 +1412,17 @@ export default function App() {
                     <Printer className="w-4 h-4" />
                     <span>Impresoras</span>
                   </button>
+                  <button
+                    onClick={() => setConfigTab("instalacion")}
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors border-b-2 cursor-pointer ${
+                      configTab === "instalacion"
+                        ? "border-blue-500 text-blue-600"
+                        : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                    }`}
+                  >
+                    <Monitor className="w-4 h-4" />
+                    <span>Instalación en otro PC</span>
+                  </button>
                 </div>
 
                 {/* Operadores tab */}
@@ -1464,6 +1478,210 @@ export default function App() {
                 {/* Impresoras tab */}
                 {configTab === "impresoras" && (
                   <PrinterManager onShowToast={showToast} />
+                )}
+
+                {/* Instalación tab */}
+                {configTab === "instalacion" && (
+                  <div className="space-y-6">
+                    {/* Header */}
+                    <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl p-6 text-white">
+                      <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
+                        <Monitor className="w-6 h-6" /> Instalar en otro computador
+                      </h2>
+                      <p className="text-blue-100 text-sm">
+                        Instala ZebraBridge Pro en cualquier PC con impresora Zebra. Los datos se sincronizan automáticamente vía Turso Cloud.
+                      </p>
+                    </div>
+
+                    {/* Cloud URL */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                      <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                        <Globe className="w-4 h-4 text-blue-500" /> Acceso Web (solo consulta, sin impresión)
+                      </h3>
+                      <div className="flex items-center gap-3">
+                        <code className="flex-1 bg-slate-50 px-4 py-2.5 rounded-lg border border-slate-200 text-sm text-blue-600 font-medium">
+                          https://zebra-bridge-pro-684852789183.us-central1.run.app
+                        </code>
+                        <button
+                          onClick={() => { navigator.clipboard.writeText('https://zebra-bridge-pro-684852789183.us-central1.run.app'); showToast('URL copiada', 'success'); }}
+                          className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors cursor-pointer"
+                          title="Copiar URL"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-2">⚠️ Desde la nube puedes ver datos pero NO imprimir. Para imprimir necesitas instalar localmente.</p>
+                    </div>
+
+                    {/* Steps */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                      <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <Download className="w-4 h-4 text-emerald-500" /> Pasos para instalar (con impresión)
+                      </h3>
+
+                      <div className="space-y-4">
+                        {/* Step 1 */}
+                        <div className="flex gap-4">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm flex-shrink-0">1</div>
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-slate-800 text-sm">Instalar Node.js</h4>
+                            <p className="text-xs text-slate-500 mb-2">Descarga e instala Node.js (LTS) en el computador destino. Se descarga el instalador .msi directamente.</p>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  showToast('Obteniendo última versión LTS...', 'success');
+                                  const res = await fetch('https://nodejs.org/dist/index.json');
+                                  const versions = await res.json();
+                                  const lts = versions.find((v: any) => v.lts);
+                                  if (lts) {
+                                    const ver = lts.version;
+                                    const url = `https://nodejs.org/dist/${ver}/node-${ver}-x64.msi`;
+                                    window.open(url, '_blank');
+                                    showToast(`Descargando Node.js ${ver}`, 'success');
+                                  } else {
+                                    window.open('https://nodejs.org/en/download/', '_blank');
+                                  }
+                                } catch {
+                                  window.open('https://nodejs.org/en/download/', '_blank');
+                                }
+                              }}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
+                            >
+                              <Download className="w-4 h-4" /> Descargar Node.js (.msi Windows)
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Step 2 */}
+                        <div className="flex gap-4">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm flex-shrink-0">2</div>
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-slate-800 text-sm">Instalar Git</h4>
+                            <p className="text-xs text-slate-500 mb-2">Necesario para descargar el código fuente. Se descarga el instalador .exe directamente.</p>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  showToast('Obteniendo última versión de Git...', 'success');
+                                  const res = await fetch('https://api.github.com/repos/git-for-windows/git/releases/latest');
+                                  const data = await res.json();
+                                  const asset = data.assets?.find((a: any) => a.name.match(/Git-.*64-bit\.exe$/));
+                                  if (asset) {
+                                    window.open(asset.browser_download_url, '_blank');
+                                    showToast(`Descargando ${asset.name}`, 'success');
+                                  } else {
+                                    window.open('https://git-scm.com/download/win', '_blank');
+                                  }
+                                } catch {
+                                  window.open('https://git-scm.com/download/win', '_blank');
+                                }
+                              }}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
+                            >
+                              <Download className="w-4 h-4" /> Descargar Git para Windows (.exe)
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Step 3 */}
+                        <div className="flex gap-4">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm flex-shrink-0">3</div>
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-slate-800 text-sm">Descargar y ejecutar el instalador</h4>
+                            <p className="text-xs text-slate-500 mb-2">Este script clona el repositorio, configura la base de datos y arranca la aplicación.</p>
+                            <button
+                              onClick={() => {
+                                const bat = `@echo off
+echo ============================================
+echo   ZebraBridge Pro - Instalacion Rapida
+echo ============================================
+echo.
+
+node --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [ERROR] Node.js no esta instalado.
+    echo Descarga desde: https://nodejs.org
+    pause
+    exit /b 1
+)
+echo [OK] Node.js encontrado
+
+git --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [ERROR] Git no esta instalado.
+    echo Descarga desde: https://git-scm.com
+    pause
+    exit /b 1
+)
+echo [OK] Git encontrado
+
+echo.
+echo Clonando repositorio...
+if exist "Etiquetas" (
+    cd Etiquetas
+    git pull
+) else (
+    git clone https://github.com/ichidoro/Etiquetas.git
+    cd Etiquetas
+)
+
+echo.
+echo Creando configuracion...
+(
+echo TURSO_DATABASE_URL="libsql://unicodiq-ichidoro.aws-us-east-1.turso.io"
+echo TURSO_AUTH_TOKEN="eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODA5NTA0OTMsImlkIjoiMDE5ZWE4ZWItY2QwMS03ODliLWJlOTMtZGZkMGY1YzFjMjJlIiwicmlkIjoiZTJhYzM5YzEtYjhhMS00NzFmLTk3YjctN2YyNjg5ZGFjZjAwIn0.iNI0xsEowQvZt4PoD4mcxrjfzyxwgU5tmY0VZ1yZImyB7IBZ_FihHAU5n7Acc6npckKP0C5xuziIOuW3lAa9Ag"
+) > .env
+echo [OK] Configuracion creada
+
+echo.
+echo Instalando dependencias...
+call npm install
+
+echo.
+echo ============================================
+echo   Iniciando ZebraBridge Pro...
+echo   Abre: http://localhost:3000
+echo ============================================
+call npm run dev
+`;
+                                const blob = new Blob([bat], { type: 'application/x-bat' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = 'instalar_zebra.bat';
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(url);
+                                showToast('Script descargado: instalar_zebra.bat', 'success');
+                              }}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
+                            >
+                              <Download className="w-4 h-4" /> Descargar instalar_zebra.bat
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Step 4 */}
+                        <div className="flex gap-4">
+                          <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm flex-shrink-0">✓</div>
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-slate-800 text-sm">¡Listo!</h4>
+                            <p className="text-xs text-slate-500">Abre <code className="bg-slate-100 px-1.5 py-0.5 rounded text-blue-600 font-medium">http://localhost:3000</code> en el navegador. La impresora se detectará automáticamente.</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Info box */}
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                      <h4 className="text-sm font-bold text-amber-800 mb-1">💡 ¿Cómo funciona?</h4>
+                      <ul className="text-xs text-amber-700 space-y-1">
+                        <li>• <strong>Datos compartidos:</strong> Todos los PCs se conectan a la misma base de datos Turso Cloud</li>
+                        <li>• <strong>Impresión local:</strong> Cada PC detecta sus propias impresoras y envía ZPL directamente</li>
+                        <li>• <strong>Sin conflictos:</strong> Los productos, operadores y formatos se sincronizan en tiempo real</li>
+                      </ul>
+                    </div>
+                  </div>
                 )}
               </div>
             )}

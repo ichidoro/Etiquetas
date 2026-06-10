@@ -12,7 +12,15 @@ import os from 'os';
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000", 10);
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "https://zebra-bridge-pro-684852789183.us-central1.run.app",
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true,
+}));
 app.use(express.json());
 
 // Initialize Turso (Cloud only)

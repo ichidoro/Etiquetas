@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { X, Printer, Download, Copy, Check, Code, Minus, Plus, Calendar, Move, RotateCcw, Save, User, Settings2, Usb } from "lucide-react";
+import { X, Printer, Download, Copy, Check, Code, Minus, Plus, Calendar, Move, RotateCcw, Save, User, Settings2, Usb, Wifi, WifiOff } from "lucide-react";
 import { Product, LabelFormat } from "../types";
-import { isWebUSBSupported, getAlreadyPairedPrinters, requestUSBPrinter, sendZPLviaUSB, forgetUSBPrinter, getPairedDevice } from "../utils/webusb";
+import { isWebUSBSupported, getAlreadyPairedPrinters, requestUSBPrinter, sendZPLviaUSB, forgetUSBPrinter } from "../utils/webusb";
+import { isRunningOnCloud, isLocalServerAvailable, fetchPrinters, sendPrintJob } from "../utils/printBridge";
 
 // ─── localStorage helpers ───────────────────────────────────────────────────
 const PRINTER_STORAGE_KEY = "zebra-default-printer";
@@ -423,43 +424,52 @@ export function TracePrintModal({
   const [usbPrinting, setUsbPrinting] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // WebUSB state
+  // Print Bridge state
+  const [localBridgeAvailable, setLocalBridgeAvailable] = useState(false);
+  const [onCloud] = useState(isRunningOnCloud());
+  const [bridgeChecked, setBridgeChecked] = useState(false);
+
+  // WebUSB state (last resort fallback)
   const [webUsbDevice, setWebUsbDevice] = useState<USBDevice | null>(null);
   const [webUsbSupported] = useState(isWebUSBSupported());
   const [useWebUsb, setUseWebUsb] = useState(false);
 
   useEffect(() => {
     const savedPrinter = loadDefaultPrinter();
-    fetch("/api/system-printers")
-      .then((r) => r.json())
-      .then((printers: any[]) => {
-        setSystemPrinters(printers);
-        if (printers.length === 0 && webUsbSupported) {
-          // No server printers → switch to WebUSB mode
-          setUseWebUsb(true);
-          // Check for already paired WebUSB devices
-          getAlreadyPairedPrinters().then((paired) => {
-            if (paired.length > 0) setWebUsbDevice(paired[0]);
-          });
+
+    const loadPrinters = async () => {
+      // Step 1: If on Cloud, check if local server is available
+      let useBridge = false;
+      if (onCloud) {
+        useBridge = await isLocalServerAvailable();
+        setLocalBridgeAvailable(useBridge);
+      }
+      setBridgeChecked(true);
+
+      // Step 2: Fetch printers (from local bridge or same-server)
+      const printers = await fetchPrinters(useBridge);
+      setSystemPrinters(printers);
+
+      if (printers.length > 0) {
+        // Found printers — select one
+        if (savedPrinter && printers.some((p) => p.Name === savedPrinter)) {
+          setSelectedSystemPrinter(savedPrinter);
         } else {
-          if (savedPrinter && printers.some((p) => p.Name === savedPrinter)) {
-            setSelectedSystemPrinter(savedPrinter);
-          } else {
-            const zebra = printers.find((p) => p.DriverName?.toLowerCase().includes("zebra") || p.Name?.toLowerCase().includes("zebra"));
-            if (zebra) setSelectedSystemPrinter(zebra.Name);
-            else if (printers.length > 0) setSelectedSystemPrinter(printers[0].Name);
-          }
+          const zebra = printers.find((p) => p.DriverName?.toLowerCase().includes("zebra") || p.Name?.toLowerCase().includes("zebra"));
+          if (zebra) setSelectedSystemPrinter(zebra.Name);
+          else setSelectedSystemPrinter(printers[0].Name);
         }
-      })
-      .catch(() => {
-        // Server unreachable (Cloud Run) → switch to WebUSB
+      } else if (onCloud && !useBridge) {
+        // On Cloud, no local server → try WebUSB as last resort
         if (webUsbSupported) {
           setUseWebUsb(true);
-          getAlreadyPairedPrinters().then((paired) => {
-            if (paired.length > 0) setWebUsbDevice(paired[0]);
-          });
+          const paired = await getAlreadyPairedPrinters();
+          if (paired.length > 0) setWebUsbDevice(paired[0]);
         }
-      });
+      }
+    };
+
+    loadPrinters();
   }, []);
 
   const handlePrinterChange = (name: string) => { setSelectedSystemPrinter(name); saveDefaultPrinter(name); };
@@ -484,7 +494,7 @@ export function TracePrintModal({
     if (!lineaProceso.trim()) { onShowToast?.("Ingresa la línea de proceso", "error"); return; }
 
     if (useWebUsb) {
-      // WebUSB printing
+      // WebUSB fallback
       if (!webUsbDevice) { onShowToast?.("Conecta una impresora USB primero", "error"); return; }
       setUsbPrinting(true);
       try {
@@ -492,22 +502,16 @@ export function TracePrintModal({
         onShowToast?.(`✅ ZPL enviado a ${webUsbDevice.productName || "impresora USB"} vía WebUSB`, "success");
       } catch (e: any) {
         onShowToast?.(e.message || "Error WebUSB", "error");
-        setWebUsbDevice(null); // Reset on error
+        setWebUsbDevice(null);
       } finally { setUsbPrinting(false); }
     } else {
-      // Server-side printing
+      // Server-side or Bridge printing
       if (!selectedSystemPrinter) { onShowToast?.("Selecciona una impresora", "error"); return; }
       setUsbPrinting(true);
-      try {
-        const res = await fetch("/api/print/usb", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ zpl: zplCode, printerName: selectedSystemPrinter }),
-        });
-        const data = await res.json();
-        if (res.ok) onShowToast?.(`✅ ${data.message}`, "success");
-        else onShowToast?.(data.error || "Error de impresión", "error");
-      } catch (e: any) { onShowToast?.("Error: " + e.message, "error"); }
-      finally { setUsbPrinting(false); }
+      const result = await sendPrintJob(zplCode, selectedSystemPrinter, localBridgeAvailable);
+      if (result.ok) onShowToast?.(`✅ ${result.message}`, "success");
+      else onShowToast?.(result.message, "error");
+      setUsbPrinting(false);
     }
   };
 
@@ -794,6 +798,17 @@ export function TracePrintModal({
             <div className="flex items-center gap-2 mb-3">
               <Code className="w-3.5 h-3.5 text-blue-400" />
               <h3 className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Consola de Impresión</h3>
+              {onCloud && bridgeChecked && (
+                localBridgeAvailable ? (
+                  <span className="ml-auto flex items-center gap-1 text-[8px] font-semibold text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded-full">
+                    <Wifi className="w-3 h-3" /> Agente local conectado
+                  </span>
+                ) : (
+                  <span className="ml-auto flex items-center gap-1 text-[8px] font-semibold text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-full">
+                    <WifiOff className="w-3 h-3" /> Sin agente local
+                  </span>
+                )
+              )}
             </div>
 
             {/* Controls row: format, printer, print/download */}

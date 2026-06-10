@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { X, Printer, Code, Copy, Check, Download, RotateCcw, Type, Barcode, Save, Minus, Plus, Usb } from "lucide-react";
+import { X, Printer, Code, Copy, Check, Download, RotateCcw, Type, Barcode, Save, Minus, Plus, Usb, Wifi, WifiOff } from "lucide-react";
 import { Product, LabelFormat, ElementPosition, SavedLabelLayout } from "../types";
 import { DraggableLabelPreview } from "./DraggableLabelPreview";
 import { generateZpl, calculateDefaultPositions } from "../utils/zebra";
 import { isWebUSBSupported, getAlreadyPairedPrinters, requestUSBPrinter, sendZPLviaUSB, forgetUSBPrinter } from "../utils/webusb";
+import { isRunningOnCloud, isLocalServerAvailable, fetchPrinters, sendPrintJob } from "../utils/printBridge";
 
 // localStorage keys
 const LAYOUT_STORAGE_KEY = 'zebra-label-layout';
@@ -89,7 +90,11 @@ export function PrintModal({
   const [usbPrinting, setUsbPrinting] = useState(false);
   const [layoutSaved, setLayoutSaved] = useState(!!savedLayout);
 
-  // WebUSB state
+  // Print Bridge state
+  const [localBridgeAvailable, setLocalBridgeAvailable] = useState(false);
+  const [onCloud] = useState(isRunningOnCloud());
+
+  // WebUSB state (last resort fallback)
   const [webUsbDevice, setWebUsbDevice] = useState<USBDevice | null>(null);
   const [webUsbSupported] = useState(isWebUSBSupported());
   const [useWebUsb, setUseWebUsb] = useState(false);
@@ -158,36 +163,35 @@ export function PrintModal({
     setLayoutSaved(false);
   };
 
-  // Fetch Windows system printers on mount
   useEffect(() => {
     const savedPrinter = loadDefaultPrinter();
-    fetch('/api/system-printers')
-      .then(r => r.json())
-      .then((printers: any[]) => {
-        setSystemPrinters(printers);
-        if (printers.length === 0 && webUsbSupported) {
-          setUseWebUsb(true);
-          getAlreadyPairedPrinters().then((paired) => {
-            if (paired.length > 0) setWebUsbDevice(paired[0]);
-          });
+
+    const loadPrinters = async () => {
+      let useBridge = false;
+      if (onCloud) {
+        useBridge = await isLocalServerAvailable();
+        setLocalBridgeAvailable(useBridge);
+      }
+
+      const printers = await fetchPrinters(useBridge);
+      setSystemPrinters(printers);
+
+      if (printers.length > 0) {
+        if (savedPrinter && printers.some(p => p.Name === savedPrinter)) {
+          setSelectedSystemPrinter(savedPrinter);
         } else {
-          if (savedPrinter && printers.some(p => p.Name === savedPrinter)) {
-            setSelectedSystemPrinter(savedPrinter);
-          } else {
-            const zebra = printers.find(p => p.DriverName?.toLowerCase().includes('zebra') || p.Name?.toLowerCase().includes('zebra'));
-            if (zebra) setSelectedSystemPrinter(zebra.Name);
-            else if (printers.length > 0) setSelectedSystemPrinter(printers[0].Name);
-          }
+          const zebra = printers.find(p => p.DriverName?.toLowerCase().includes('zebra') || p.Name?.toLowerCase().includes('zebra'));
+          if (zebra) setSelectedSystemPrinter(zebra.Name);
+          else setSelectedSystemPrinter(printers[0].Name);
         }
-      })
-      .catch(() => {
-        if (webUsbSupported) {
-          setUseWebUsb(true);
-          getAlreadyPairedPrinters().then((paired) => {
-            if (paired.length > 0) setWebUsbDevice(paired[0]);
-          });
-        }
-      });
+      } else if (onCloud && !useBridge && webUsbSupported) {
+        setUseWebUsb(true);
+        const paired = await getAlreadyPairedPrinters();
+        if (paired.length > 0) setWebUsbDevice(paired[0]);
+      }
+    };
+
+    loadPrinters();
   }, []);
 
   // Save printer as default when changed
@@ -239,17 +243,10 @@ export function PrintModal({
     } else {
       if (!selectedSystemPrinter) { onShowToast?.('Selecciona una impresora del sistema', 'error'); return; }
       setUsbPrinting(true);
-      try {
-        const res = await fetch('/api/print/usb', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ zpl: zplCode, printerName: selectedSystemPrinter }),
-        });
-        const data = await res.json();
-        if (res.ok) { onShowToast?.(`✅ ${data.message}`, 'success'); }
-        else { onShowToast?.(data.error || 'Error de impresión', 'error'); }
-      } catch (e: any) { onShowToast?.('Error de conexión: ' + e.message, 'error'); }
-      finally { setUsbPrinting(false); }
+      const result = await sendPrintJob(zplCode, selectedSystemPrinter, localBridgeAvailable);
+      if (result.ok) onShowToast?.(`✅ ${result.message}`, 'success');
+      else onShowToast?.(result.message, 'error');
+      setUsbPrinting(false);
     }
   };
 
