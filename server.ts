@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from "express";
 import cors from "cors";
 import path from "path";
-import { createServer as createViteServer } from "vite";
+// vite is imported dynamically in dev mode only (it's a devDependency)
 import { createClient } from "@libsql/client";
 import net from 'net';
 import { exec } from 'child_process';
@@ -10,7 +10,7 @@ import fs from 'fs';
 import os from 'os';
 
 const app = express();
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT || "3000", 10);
 
 app.use(cors());
 app.use(express.json());
@@ -785,6 +785,7 @@ app.delete('/api/label-designs/:id', async (req, res) => {
 async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",

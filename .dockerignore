@@ -1,0 +1,11 @@
+node_modules
+.git
+.env
+local.db
+*.log
+dist
+.gemini
+scripts
+test_*.ts
+inspect.ts
+assets
