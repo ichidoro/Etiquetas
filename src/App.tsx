@@ -544,8 +544,8 @@ export default function App() {
         </header>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-auto p-4 sm:p-8">
-          <div className="w-full max-w-[1600px] mx-auto space-y-6">
+        <div className={`flex-1 overflow-auto ${currentView === "disenador" ? "" : "p-4 sm:p-8"}`}>
+          <div className={currentView === "disenador" ? "h-full" : "w-full max-w-[1600px] mx-auto space-y-6"}>
             {currentView === "maestro" && (
               <>
                 {/* Header Summary & Actions */}
