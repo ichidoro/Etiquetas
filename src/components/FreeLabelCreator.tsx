@@ -5,7 +5,7 @@ import {
   GripVertical, Copy, Check, Code, Move, X,
 } from "lucide-react";
 import { LabelFormat } from "../types";
-import { isLocalServerAvailable, fetchPrinters, sendPrintJob } from "../utils/printBridge";
+import { isRunningOnCloud, isLocalServerAvailable, fetchPrinters, sendPrintJob } from "../utils/printBridge";
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 interface LabelElement {
@@ -448,22 +448,29 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
   // ── Load printers (via printBridge for Cloud support)
   useEffect(() => {
     const savedPrinter = loadDefaultPrinter();
-    // Check if local bridge is available
-    isLocalServerAvailable().then(setLocalBridgeAvailable);
-    fetchPrinters()
-      .then((printers: any[]) => {
-        setSystemPrinters(printers);
-        if (savedPrinter && printers.some((p) => p.Name === savedPrinter)) {
-          setSelectedSystemPrinter(savedPrinter);
-        } else {
-          const zebra = printers.find((p) =>
-            p.DriverName?.toLowerCase().includes("zebra") || p.Name?.toLowerCase().includes("zebra")
-          );
-          if (zebra) setSelectedSystemPrinter(zebra.Name);
-          else if (printers.length > 0) setSelectedSystemPrinter(printers[0].Name);
-        }
-      })
-      .catch(() => {});
+
+    const loadPrinters = async () => {
+      const onCloud = isRunningOnCloud();
+      let useBridge = false;
+      if (onCloud) {
+        useBridge = await isLocalServerAvailable();
+        setLocalBridgeAvailable(useBridge);
+      }
+
+      const printers = await fetchPrinters(useBridge);
+      setSystemPrinters(printers);
+      if (savedPrinter && printers.some((p) => p.Name === savedPrinter)) {
+        setSelectedSystemPrinter(savedPrinter);
+      } else {
+        const zebra = printers.find((p) =>
+          p.DriverName?.toLowerCase().includes("zebra") || p.Name?.toLowerCase().includes("zebra")
+        );
+        if (zebra) setSelectedSystemPrinter(zebra.Name);
+        else if (printers.length > 0) setSelectedSystemPrinter(printers[0].Name);
+      }
+    };
+
+    loadPrinters().catch(() => {});
 
     // Load designs from DB
     fetchDesignsFromDb().then(setSavedDesigns);
