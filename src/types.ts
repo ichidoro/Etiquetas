@@ -33,6 +33,8 @@ export interface LabelFormat {
   showSku: boolean;
   showEan13: boolean;
   showDun14: boolean;
+  labelShift?: number; // horizontal shift in mm (negative = left) — ZPL ^LS
+  labelTop?: number;   // vertical shift in mm (negative = up) — ZPL ^LT
 }
 
 export interface ZebraPrinter {

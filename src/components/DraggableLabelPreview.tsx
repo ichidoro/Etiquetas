@@ -76,8 +76,8 @@ export function DraggableLabelPreview({
     if (interaction.type === 'drag') {
       const newX = (e.clientX - labelRect.left - interaction.offsetX) / scale;
       const newY = (e.clientY - labelRect.top - interaction.offsetY) / scale;
-      const clampedX = Math.max(0, Math.min(newX, format.width - 5));
-      const clampedY = Math.max(0, Math.min(newY, format.height - pos.h));
+      const clampedX = Math.max(-5, Math.min(newX, format.width - 3));
+      const clampedY = Math.max(-2, Math.min(newY, format.height - pos.h));
       const newPositions = positions.map(p =>
         p.id === interaction.elementId
           ? { ...p, x: Math.round(clampedX * 10) / 10, y: Math.round(clampedY * 10) / 10 }

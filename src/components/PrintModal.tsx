@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { X, Printer, Code, Copy, Check, Download, RotateCcw, Type, Barcode, Save, Minus, Plus, Usb, Wifi, WifiOff } from "lucide-react";
 import { Product, LabelFormat, ElementPosition, SavedLabelLayout } from "../types";
 import { DraggableLabelPreview } from "./DraggableLabelPreview";
-import { generateZpl, calculateDefaultPositions } from "../utils/zebra";
+import { generateZpl, calculateDefaultPositions, generateCalibrationZpl } from "../utils/zebra";
 import { isWebUSBSupported, getAlreadyPairedPrinters, requestUSBPrinter, sendZPLviaUSB, forgetUSBPrinter } from "../utils/webusb";
 import { isRunningOnCloud, isLocalServerAvailable, fetchPrinters, sendPrintJob } from "../utils/printBridge";
 
@@ -505,6 +505,33 @@ export function PrintModal({
                 >
                   <Download className="w-3 h-3 mr-1.5" />
                   Descargar .ZPL
+                </button>
+                <button
+                  onClick={async () => {
+                    const calZpl = generateCalibrationZpl(currentFormat);
+                    if (selectedSystemPrinter) {
+                      try {
+                        await sendPrintJob(calZpl, selectedSystemPrinter, localBridgeAvailable);
+                        onShowToast?.('Test de calibración enviado', 'success');
+                      } catch {
+                        onShowToast?.('Error al enviar calibración', 'error');
+                      }
+                    } else {
+                      const blob = new Blob([calZpl], { type: 'text/plain' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `calibracion_${currentFormat.width}x${currentFormat.height}.zpl`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                    }
+                  }}
+                  disabled={usbPrinting}
+                  className="w-full flex items-center justify-center px-3 py-1.5 outline-none rounded-md bg-amber-700 hover:bg-amber-600 text-amber-100 font-medium text-[11px] transition-colors border border-amber-600 cursor-pointer disabled:opacity-50"
+                >
+                  📏 Test de Calibración (regla)
                 </button>
               </div>
 

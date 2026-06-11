@@ -81,20 +81,28 @@ export function generateZpl(
       gapDots * Math.max(0, format.labelsPerRow - 1) +
       marginLeftDots,
   );
-  const ll = labelHeightDots;
+  const verticalGapDots = Math.round((format.verticalGap || 2) * dpmm);
+  const verticalCount = format.labelsPerColumn || 1;
+  const ll = verticalCount * labelHeightDots +
+    Math.max(0, verticalCount - 1) * verticalGapDots;
 
   let zpl = "^XA\n";
   zpl += `^PW${totalPw}\n`;
   zpl += `^LL${ll}\n`;
   zpl += `~SD${format.darkness}\n`;
   zpl += `^PR${format.printSpeed}\n`;
+  // Label shift (horizontal offset correction for printer alignment)
+  const shiftDots = Math.round((format.labelShift || 0) * dpmm);
+  if (shiftDots !== 0) zpl += `^LS${shiftDots}\n`;
+  // Label top (vertical offset correction)
+  const topDots = Math.round((format.labelTop || 0) * dpmm);
+  if (topDots !== 0) zpl += `^LT${topDots}\n`;
 
   // Font defaults (can be overridden per element)
   const defaultFontHmm = 3;
   const defaultFontWmm = 2.5;
 
   const orientation = format.orientation;
-  const verticalGapDots = Math.round((format.verticalGap || 2) * dpmm);
 
   // Calculate positions
   const positions = customPositions || calculateDefaultPositions(
@@ -105,59 +113,77 @@ export function generateZpl(
   const posMap = new Map<string, ElementPosition>();
   for (const p of positions) posMap.set(p.id, p);
 
-  // Usable label width for centering (in dots)
-  const usableWidth = labelWidthDots - marginLeftDots;
-
-  const verticalCount = format.labelsPerColumn || 1;
   const horizontalCount = format.labelsPerRow || 1;
 
   for (let row = 0; row < verticalCount; row++) {
     for (let col = 0; col < horizontalCount; col++) {
+      // Each label cell starts at marginLeft + col*(labelWidth+gap)
       const colOffsetX = marginLeftDots + col * (labelWidthDots + gapDots);
       const rowOffsetY = row * (labelHeightDots + verticalGapDots);
 
-      // Name — centered with ^FB field block, custom font size
+      // Name — centered with ^FB field block across label width
       if (format.showName && itemName && posMap.has('name')) {
         const pos = posMap.get('name')!;
         const fsMm = pos.fontSize || defaultFontHmm;
         const fontH = Math.round(fsMm * dpmm);
         const fontW = Math.round((fsMm * 0.8) * dpmm);
         const y = rowOffsetY + Math.round(pos.y * dpmm);
-        const fbWidth = usableWidth;
-        zpl += `^FO${colOffsetX},${y}^FB${fbWidth},1,0,C,0^A0${orientation},${fontH},${fontW}^FD${itemName.substring(0, 30)}^FS\n`;
+        const xOffset = Math.round(pos.x * dpmm);
+        // Center text within the label cell width
+        zpl += `^FO${Math.max(0, colOffsetX + xOffset)},${y}^FB${labelWidthDots},1,0,C,0^A0${orientation},${fontH},${fontW}^FD${itemName.substring(0, 40)}^FS\n`;
       }
 
-      // SKU (Code 128) — centered
+      // SKU (Code 128) — centered or custom X
       if (format.showSku && sku && posMap.has('sku')) {
         const pos = posMap.get('sku')!;
         const bHeight = Math.round(pos.h * dpmm);
         const y = rowOffsetY + Math.round(pos.y * dpmm);
-        // Approximate barcode width for Code128: ~11 * chars * moduleWidth(2) dots
-        const approxBarcodeWidth = Math.min(sku.length * 22 + 40, usableWidth);
-        const centerX = colOffsetX + Math.round((usableWidth - approxBarcodeWidth) / 2);
-        zpl += `^FO${Math.max(colOffsetX, centerX)},${y}^BC${orientation},${bHeight},Y,N,N^FD${sku}^FS\n`;
+        let x: number;
+        if (pos.x !== 0) {
+          x = colOffsetX + Math.round(pos.x * dpmm);
+        } else {
+          const approxBarcodeWidth = Math.min(sku.length * 22 + 40, labelWidthDots);
+          x = colOffsetX + Math.round((labelWidthDots - approxBarcodeWidth) / 2);
+        }
+        zpl += `^FO${Math.max(0, x)},${y}^BC${orientation},${bHeight},Y,N,N^FD${sku}^FS\n`;
       }
 
-      // EAN13 — centered
+      // EAN13 — centered or custom X
+      // IMPORTANT: EAN-13 renders its first digit ~18 dots LEFT of the ^FO position.
+      // So we must offset the FO position rightward to keep the first digit visible.
       if (format.showEan13 && ean13 && posMap.has('ean13')) {
         const pos = posMap.get('ean13')!;
         const bHeight = Math.round(pos.h * dpmm);
         const y = rowOffsetY + Math.round(pos.y * dpmm);
-        // EAN13 is always 95 modules wide; at default module width ~190 dots
-        const approxBarcodeWidth = 190;
-        const centerX = colOffsetX + Math.round((usableWidth - approxBarcodeWidth) / 2);
-        zpl += `^FO${Math.max(colOffsetX, centerX)},${y}^BE${orientation},${bHeight},Y,N^FD${ean13}^FS\n`;
+        const firstDigitOffset = 18; // dots the first digit extends left of ^FO
+        let x: number;
+        if (pos.x !== 0) {
+          x = colOffsetX + Math.round(pos.x * dpmm);
+        } else {
+          // Total visual width = bars(190) + first digit(18) = 208
+          const totalVisualWidth = 190 + firstDigitOffset;
+          // Center the total visual width within the label
+          const leftPadding = Math.round((labelWidthDots - totalVisualWidth) / 2);
+          // FO = labelStart + leftPadding + firstDigitOffset (so first digit lands at leftPadding)
+          x = colOffsetX + leftPadding + firstDigitOffset;
+        }
+        // Ensure first digit doesn't go off the left edge
+        zpl += `^FO${Math.max(firstDigitOffset, x)},${y}^BE${orientation},${bHeight},Y,N^FD${ean13}^FS\n`;
       }
 
-      // DUN14 — centered
+      // DUN14 — centered or custom X
       if (format.showDun14 && dun14 && posMap.has('dun14')) {
         const pos = posMap.get('dun14')!;
         const bHeight = Math.round(pos.h * dpmm);
         const y = rowOffsetY + Math.round(pos.y * dpmm);
-        // ITF14 approximate width: ~14 chars * 2 * moduleWidth(2)
-        const approxBarcodeWidth = Math.min(dun14.length * 18 + 40, usableWidth);
-        const centerX = colOffsetX + Math.round((usableWidth - approxBarcodeWidth) / 2);
-        zpl += `^FO${Math.max(colOffsetX, centerX)},${y}^B2${orientation},${bHeight},Y,N,N^FD${dun14}^FS\n`;
+        let x: number;
+        if (pos.x !== 0) {
+          x = colOffsetX + Math.round(pos.x * dpmm);
+        } else {
+          const approxBarcodeWidth = Math.min(dun14.length * 18 + 40, labelWidthDots);
+          x = colOffsetX + Math.round((labelWidthDots - approxBarcodeWidth) / 2);
+        }
+        zpl += `^FO${Math.max(0, x)},${y}^B2${orientation},${bHeight},Y,N,N^FD${dun14}^FS\n`;
       }
     }
   }
@@ -165,4 +191,94 @@ export function generateZpl(
   zpl += "^PQ1,0,1,Y\n";
   zpl += "^XZ\n";
   return zpl;
+}
+
+/**
+ * Generate a calibration/ruler test label.
+ * Draws borders, ruler tick marks every 5mm, center crosshairs,
+ * and dimension labels for each label cell in the grid.
+ */
+export function generateCalibrationZpl(format: LabelFormat): string {
+  const dpmm = format.dpi === 300 ? 12 : 8;
+  const lw = Math.round(format.width * dpmm);   // label width dots
+  const lh = Math.round(format.height * dpmm);   // label height dots
+  const gapH = Math.round(format.horizontalGap * dpmm);
+  const gapV = Math.round((format.verticalGap || 2) * dpmm);
+  const ml = Math.round(format.marginLeft * dpmm);
+  const cols = format.labelsPerRow || 1;
+  const rows = format.labelsPerColumn || 1;
+
+  const pw = Math.max(lw, lw * cols + gapH * Math.max(0, cols - 1) + ml);
+  const ll = rows * lh + Math.max(0, rows - 1) * gapV;
+
+  let z = "^XA\n";
+  z += `^PW${pw}\n^LL${ll}\n~SD${format.darkness}\n^PR${format.printSpeed}\n`;
+  const shiftDots = Math.round((format.labelShift || 0) * dpmm);
+  if (shiftDots !== 0) z += `^LS${shiftDots}\n`;
+  const topDots = Math.round((format.labelTop || 0) * dpmm);
+  if (topDots !== 0) z += `^LT${topDots}\n`;
+
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const ox = ml + col * (lw + gapH);  // cell origin X
+      const oy = row * (lh + gapV);       // cell origin Y
+
+      // 1. Border rectangle (2-dot thick)
+      z += `^FO${ox},${oy}^GB${lw},${lh},2^FS\n`;
+
+      // 2. Horizontal ruler ticks along TOP and BOTTOM (every 5mm)
+      const tickSmall = Math.round(lh * 0.06);  // short tick
+      const tickBig = Math.round(lh * 0.12);    // long tick (every 10mm)
+      for (let mm = 5; mm < format.width; mm += 5) {
+        const tx = ox + Math.round(mm * dpmm);
+        const tLen = mm % 10 === 0 ? tickBig : tickSmall;
+        // Top ticks
+        z += `^FO${tx},${oy}^GB1,${tLen},1^FS\n`;
+        // Bottom ticks
+        z += `^FO${tx},${oy + lh - tLen}^GB1,${tLen},1^FS\n`;
+        // Number label at 10mm intervals (top)
+        if (mm % 10 === 0) {
+          z += `^FO${tx - 6},${oy + tLen + 1}^A0N,12,10^FD${mm}^FS\n`;
+        }
+      }
+
+      // 3. Vertical ruler ticks along LEFT and RIGHT (every 5mm)
+      for (let mm = 5; mm < format.height; mm += 5) {
+        const ty = oy + Math.round(mm * dpmm);
+        const tLen = mm % 10 === 0 ? tickBig : tickSmall;
+        // Left ticks
+        z += `^FO${ox},${ty}^GB${tLen},1,1^FS\n`;
+        // Right ticks
+        z += `^FO${ox + lw - tLen},${ty}^GB${tLen},1,1^FS\n`;
+        // Number label at 10mm intervals (left)
+        if (mm % 10 === 0) {
+          z += `^FO${ox + tLen + 2},${ty - 6}^A0N,12,10^FD${mm}^FS\n`;
+        }
+      }
+
+      // 4. Center crosshair (10-dot lines)
+      const cx = ox + Math.round(lw / 2);
+      const cy = oy + Math.round(lh / 2);
+      z += `^FO${cx - 16},${cy}^GB32,1,1^FS\n`;  // horizontal
+      z += `^FO${cx},${cy - 16}^GB1,32,1^FS\n`;  // vertical
+
+      // 5. Corner dots (3×3)
+      const d = 4; // dot size
+      const m = 3; // margin from edge
+      z += `^FO${ox + m},${oy + m}^GB${d},${d},${d}^FS\n`;  // top-left
+      z += `^FO${ox + lw - m - d},${oy + m}^GB${d},${d},${d}^FS\n`;  // top-right
+      z += `^FO${ox + m},${oy + lh - m - d}^GB${d},${d},${d}^FS\n`;  // bottom-left
+      z += `^FO${ox + lw - m - d},${oy + lh - m - d}^GB${d},${d},${d}^FS\n`;  // bottom-right
+
+      // 6. Dimension label at center
+      const dimText = `${format.width}x${format.height}`;
+      z += `^FO${cx - 20},${cy + 6}^A0N,12,10^FD${dimText}^FS\n`;
+
+      // 7. Column/Row label
+      z += `^FO${cx - 10},${cy - 20}^A0N,14,12^FDC${col + 1}R${row + 1}^FS\n`;
+    }
+  }
+
+  z += "^PQ1,0,1,Y\n^XZ\n";
+  return z;
 }

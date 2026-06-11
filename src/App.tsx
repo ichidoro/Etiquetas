@@ -1265,6 +1265,40 @@ export default function App() {
                               </option>
                             </select>
                           </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                              Ajuste Horizontal ^LS (mm)
+                            </label>
+                            <input
+                              type="number"
+                              step="0.5"
+                              className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
+                              value={labelFormat.labelShift || 0}
+                              onChange={(e) =>
+                                updateCurrentFormat({
+                                  labelShift: Number(e.target.value),
+                                })
+                              }
+                            />
+                            <p className="text-[10px] text-slate-500 mt-1">negativo = izquierda</p>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                              Ajuste Vertical ^LT (mm)
+                            </label>
+                            <input
+                              type="number"
+                              step="0.5"
+                              className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
+                              value={labelFormat.labelTop || 0}
+                              onChange={(e) =>
+                                updateCurrentFormat({
+                                  labelTop: Number(e.target.value),
+                                })
+                              }
+                            />
+                            <p className="text-[10px] text-slate-500 mt-1">negativo = arriba</p>
+                          </div>
                         </div>
                       </div>
                     </div>
