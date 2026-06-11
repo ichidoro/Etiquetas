@@ -194,6 +194,16 @@ export default function App() {
     fetchLabelFormats();
   }, []);
 
+  // Auto-refresh every 30s for real-time sync between PCs
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchProducts();
+      fetchLabelFormats();
+      fetchConfig();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const fetchLabelFormats = async () => {
     try {
       const res = await fetch("/api/label-formats");
