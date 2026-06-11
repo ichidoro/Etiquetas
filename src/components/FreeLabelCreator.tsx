@@ -5,6 +5,7 @@ import {
   GripVertical, Copy, Check, Code, Move, X,
 } from "lucide-react";
 import { LabelFormat } from "../types";
+import { isLocalServerAvailable, fetchPrinters, sendPrintJob } from "../utils/printBridge";
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 interface LabelElement {
@@ -155,9 +156,14 @@ function generateFreeZpl(
 
   let zpl = "^XA\n";
   zpl += `^PW${totalPw}\n`;
-  zpl += `^LL${labelH}\n`;
+  const totalLL = rows * labelH + Math.max(0, rows - 1) * vGap;
+  zpl += `^LL${totalLL}\n`;
   zpl += `~SD${format.darkness}\n`;
   zpl += `^PR${format.printSpeed}\n`;
+  const shiftDots = Math.round((format.labelShift || 0) * dpmm);
+  if (shiftDots !== 0) zpl += `^LS${shiftDots}\n`;
+  const topDots = Math.round((format.labelTop || 0) * dpmm);
+  if (topDots !== 0) zpl += `^LT${topDots}\n`;
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
@@ -427,6 +433,7 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
   const [selectedSystemPrinter, setSelectedSystemPrinter] = useState("");
   const [usbPrinting, setUsbPrinting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [localBridgeAvailable, setLocalBridgeAvailable] = useState(false);
 
   // ── Template state
   const [savedDesigns, setSavedDesigns] = useState<SavedDesign[]>([]);
@@ -438,11 +445,12 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
   // ── Drag reorder
   const [dragReorderIdx, setDragReorderIdx] = useState<number | null>(null);
 
-  // ── Load printers
+  // ── Load printers (via printBridge for Cloud support)
   useEffect(() => {
     const savedPrinter = loadDefaultPrinter();
-    fetch("/api/system-printers")
-      .then((r) => r.json())
+    // Check if local bridge is available
+    isLocalServerAvailable().then(setLocalBridgeAvailable);
+    fetchPrinters()
       .then((printers: any[]) => {
         setSystemPrinters(printers);
         if (savedPrinter && printers.some((p) => p.Name === savedPrinter)) {
@@ -632,14 +640,9 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
     }
     setUsbPrinting(true);
     try {
-      const res = await fetch("/api/print/usb", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ zpl: zplCode, printerName: selectedSystemPrinter }),
-      });
-      const data = await res.json();
-      if (res.ok) onShowToast?.(`✅ ${data.message}`, "success");
-      else onShowToast?.(data.error || "Error de impresión", "error");
+      const result = await sendPrintJob(zplCode, selectedSystemPrinter, localBridgeAvailable);
+      if (result.ok) onShowToast?.(`✅ ${result.message}`, "success");
+      else onShowToast?.(result.message || "Error de impresión", "error");
     } catch (e: any) {
       onShowToast?.("Error: " + e.message, "error");
     } finally {

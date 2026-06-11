@@ -106,9 +106,17 @@ function generateTraceZpl(
 
   let zpl = "^XA\n";
   zpl += `^PW${totalPw}\n`;
-  zpl += `^LL${labelH}\n`;
+  // LL must account for multiple rows
+  const totalLL = rows * labelH + Math.max(0, rows - 1) * vGap;
+  zpl += `^LL${totalLL}\n`;
   zpl += `~SD${format.darkness}\n`;
   zpl += `^PR${format.printSpeed}\n`;
+  // Label shift (horizontal offset correction)
+  const shiftDots = Math.round((format.labelShift || 0) * dpmm);
+  if (shiftDots !== 0) zpl += `^LS${shiftDots}\n`;
+  // Label top (vertical offset correction)
+  const topDots = Math.round((format.labelTop || 0) * dpmm);
+  if (topDots !== 0) zpl += `^LT${topDots}\n`;
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
