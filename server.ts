@@ -362,6 +362,18 @@ app.get("/api/bridges", async (req, res) => {
   }
 });
 
+// Download Bridge file — used by the installer BAT
+app.get("/api/download-bridge", (req, res) => {
+  const bridgePath = path.join(__dirname, "print-bridge.mjs");
+  if (fs.existsSync(bridgePath)) {
+    res.setHeader("Content-Type", "application/javascript");
+    res.setHeader("Content-Disposition", "attachment; filename=print-bridge.mjs");
+    res.send(fs.readFileSync(bridgePath, "utf-8"));
+  } else {
+    res.status(404).json({ error: "Bridge file not found" });
+  }
+});
+
 // Label Formats API
 app.get("/api/label-formats", async (req, res) => {
   try {

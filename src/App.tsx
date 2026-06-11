@@ -1616,86 +1616,20 @@ set "ZEBRA_DIR=%USERPROFILE%\ZebraBridge"
 if not exist "%ZEBRA_DIR%" mkdir "%ZEBRA_DIR%"
 echo [OK] Carpeta: %ZEBRA_DIR%
 
-:: ── 3. Generar servidor de impresion ──────────────────
-echo [..] Creando servidor de impresion...
-
-> "%ZEBRA_DIR%\print-bridge.mjs" (
-echo import http from "node:http";
-echo import { execSync, exec } from "node:child_process";
-echo import fs from "node:fs";
-echo import path from "node:path";
-echo import os from "node:os";
-echo const PORT = 3000;
-echo function setCors(res, req) {
-echo   const origin = req.headers.origin || "*";
-echo   res.setHeader("Access-Control-Allow-Origin", origin);
-echo   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-echo   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-echo }
-echo function getSystemPrinters() {
-echo   try {
-echo     const ps = 'Get-Printer ^| Select-Object Name, PortName, DriverName ^| ConvertTo-Json -Compress';
-echo     const raw = execSync('powershell -NoProfile -Command "' + ps + '"', { encoding: "utf-8", timeout: 10000 }).trim();
-echo     const parsed = JSON.parse(raw);
-echo     return Array.isArray(parsed) ? parsed : [parsed];
-echo   } catch (err) { return []; }
-echo }
-echo function printZpl(zpl, printerName) {
-echo   return new Promise((resolve, reject) =^> {
-echo     const tmpFile = path.join(os.tmpdir(), 'zpl_' + Date.now() + '.txt');
-echo     fs.writeFileSync(tmpFile, zpl, "utf-8");
-echo     const safeName = printerName.replace(/"/g, '\\"');
-echo     const cmd = 'powershell -NoProfile -Command "Copy-Item -Path \'' + tmpFile + '\' -Destination \'\\\\localhost\\' + safeName + '\' -Force"';
-echo     exec(cmd, { timeout: 15000 }, (err) =^> {
-echo       try { fs.unlinkSync(tmpFile); } catch(e) {}
-echo       if (err) reject(err); else resolve();
-echo     });
-echo   });
-echo }
-echo const server = http.createServer(async (req, res) =^> {
-echo   setCors(res, req);
-echo   if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
-echo   const url = new URL(req.url, 'http://localhost:' + PORT);
-echo   if (url.pathname === "/api/system-printers" ^&^& req.method === "GET") {
-echo     res.writeHead(200, { "Content-Type": "application/json" });
-echo     res.end(JSON.stringify(getSystemPrinters())); return;
-echo   }
-echo   if (url.pathname === "/api/print/usb" ^&^& req.method === "POST") {
-echo     let body = "";
-echo     req.on("data", (c) =^> body += c);
-echo     req.on("end", async () =^> {
-echo       try {
-echo         const { zpl, printerName } = JSON.parse(body);
-echo         if (!zpl ^|^| !printerName) { res.writeHead(400); res.end('{"error":"Faltan datos"}'); return; }
-echo         await printZpl(zpl, printerName);
-echo         console.log('Impreso en ' + printerName);
-echo         res.writeHead(200, { "Content-Type": "application/json" });
-echo         res.end(JSON.stringify({ message: 'Impreso en ' + printerName }));
-echo       } catch (err) {
-echo         res.writeHead(500, { "Content-Type": "application/json" });
-echo         res.end(JSON.stringify({ error: err.message }));
-echo       }
-echo     }); return;
-echo   }
-echo   if (url.pathname === "/" ^|^| url.pathname === "/health") {
-echo     res.writeHead(200, { "Content-Type": "application/json" });
-echo     res.end('{"status":"ok"}'); return;
-echo   }
-echo   res.writeHead(404); res.end("Not found");
-echo });
-echo server.listen(PORT, () =^> {
-echo   const p = getSystemPrinters();
-echo   console.log('ZebraBridge Print Server activo en puerto ' + PORT);
-echo   console.log(p.length + ' impresoras detectadas');
-echo   p.forEach((x) =^> console.log('  - ' + x.Name));
-echo });
+:: ── 3. Descargar servidor de impresion desde la nube ──
+echo [..] Descargando servidor de impresion...
+powershell -NoProfile -Command "try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://zebra-bridge-pro-684852789183.us-central1.run.app/api/download-bridge' -OutFile '%ZEBRA_DIR%\print-bridge.mjs' -UseBasicParsing; Write-Host '[OK] Servidor descargado' } catch { Write-Host '[ERROR] No se pudo descargar: ' + $_.Exception.Message; exit 1 }"
+if not exist "%ZEBRA_DIR%\print-bridge.mjs" (
+    echo [ERROR] No se pudo descargar el servidor.
+    echo    Verifica tu conexion a internet.
+    pause
+    exit /b 1
 )
-echo [OK] Servidor creado
 
 :: ── 4. Crear lanzador silencioso (VBS) ────────────────
 echo [..] Configurando modo invisible...
 > "%ZEBRA_DIR%\launch-silent.vbs" (
-echo Set WshShell = CreateObject("WScript.Shell"^)
+echo Set WshShell = CreateObject^("WScript.Shell"^)
 echo WshShell.CurrentDirectory = "%ZEBRA_DIR%"
 echo WshShell.Run "node ""%ZEBRA_DIR%\print-bridge.mjs""", 0, False
 )
@@ -1718,19 +1652,18 @@ for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":3000 " ^| findstr "L
 )
 timeout /t 2 /nobreak >nul
 
-:: ── 6b. Abrir firewall para WiFi ─────────────────────
+:: ── 7. Abrir firewall para WiFi ──────────────────────
 echo [..] Abriendo firewall para impresion WiFi...
 netsh advfirewall firewall delete rule name="ZebraBridge" >nul 2>&1
 netsh advfirewall firewall add rule name="ZebraBridge" dir=in action=allow protocol=TCP localport=3000 >nul 2>&1
 echo [OK] Firewall configurado
 
-
-:: ── 7. Iniciar en segundo plano ───────────────────────
+:: ── 8. Iniciar en segundo plano ───────────────────────
 echo [..] Iniciando servidor...
 start "" wscript.exe "%ZEBRA_DIR%\launch-silent.vbs"
 timeout /t 3 /nobreak >nul
 
-:: ── 8. Verificar ──────────────────────────────────────
+:: ── 9. Verificar ──────────────────────────────────────
 powershell -NoProfile -Command "try { Invoke-WebRequest -Uri 'http://localhost:3000/health' -UseBasicParsing -TimeoutSec 5 | Out-Null; Write-Host '[OK] Servidor ACTIVO en puerto 3000' } catch { Write-Host '[ERROR] El servidor no responde' }"
 
 echo.
