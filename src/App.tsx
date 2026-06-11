@@ -726,7 +726,7 @@ export default function App() {
                 {/* Table Content */}
                 <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
                   <div className="overflow-x-auto w-full">
-                    <table className="min-w-[1400px] divide-y divide-slate-200">
+                    <table className="min-w-[1600px] divide-y divide-slate-200">
                       <thead className="bg-slate-50">
                         <tr>
                           <th
@@ -790,19 +790,17 @@ export default function App() {
                           >
                             Estado
                           </th>
-                          <th
-                            scope="col"
-                            className="sticky right-0 z-10 px-3 py-3 border-b-2 border-slate-200 bg-slate-50"
-                          >
-                            <span className="sr-only">Acciones</span>
-                          </th>
+                          <th scope="col" className="px-2 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200">Barras</th>
+                          <th scope="col" className="px-2 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200">Trazabilidad</th>
+                          <th scope="col" className="px-2 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200">Editar</th>
+                          <th scope="col" className="px-2 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200">Eliminar</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-slate-100 relative">
                         {loading ? (
                           <tr>
                             <td
-                              colSpan={12}
+                              colSpan={14}
                               className="px-3 py-8 text-center text-slate-500 font-medium"
                             >
                               <div className="flex justify-center items-center space-x-2">
@@ -814,7 +812,7 @@ export default function App() {
                         ) : filteredProducts.length === 0 ? (
                           <tr>
                             <td
-                              colSpan={12}
+                              colSpan={14}
                               className="px-3 py-8 text-center text-slate-500 font-medium bg-slate-50/50"
                             >
                               No se encontraron resultados. Intenta agregar un
@@ -875,40 +873,25 @@ export default function App() {
                                   {p.activo !== false ? 'Activo' : 'Inactivo'}
                                 </span>
                               </td>
-                              <td className="sticky right-0 z-10 px-3 py-3 whitespace-nowrap text-right text-sm font-medium bg-white">
-                                <div className="flex items-center justify-end space-x-2">
-                                  <button
-                                    onClick={() => setPrintingProduct(p)}
-                                    title="Imprimir Código de Barras"
-                                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                                  >
-                                    <Printer className="w-5 h-5" />
-                                  </button>
-                                  <button
-                                    onClick={() => setTracePrintingProduct(p)}
-                                    title="Imprimir Trazabilidad"
-                                    className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors"
-                                  >
-                                    <ClipboardList className="w-5 h-5" />
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setEditingProduct(p);
-                                      setIsFormOpen(true);
-                                    }}
-                                    title="Editar"
-                                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                                  >
-                                    <Edit className="w-5 h-5" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDelete(p.id!)}
-                                    title="Eliminar"
-                                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                                  >
-                                    <Trash2 className="w-5 h-5" />
-                                  </button>
-                                </div>
+                              <td className="px-2 py-3 whitespace-nowrap text-center">
+                                <button onClick={() => setPrintingProduct(p)} title="Imprimir Código de Barras" className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer">
+                                  <Printer className="w-5 h-5" />
+                                </button>
+                              </td>
+                              <td className="px-2 py-3 whitespace-nowrap text-center">
+                                <button onClick={() => setTracePrintingProduct(p)} title="Imprimir Trazabilidad" className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors cursor-pointer">
+                                  <ClipboardList className="w-5 h-5" />
+                                </button>
+                              </td>
+                              <td className="px-2 py-3 whitespace-nowrap text-center">
+                                <button onClick={() => { setEditingProduct(p); setIsFormOpen(true); }} title="Editar" className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer">
+                                  <Edit className="w-5 h-5" />
+                                </button>
+                              </td>
+                              <td className="px-2 py-3 whitespace-nowrap text-center">
+                                <button onClick={() => handleDelete(p.id!)} title="Eliminar" className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors cursor-pointer">
+                                  <Trash2 className="w-5 h-5" />
+                                </button>
                               </td>
                             </tr>
                           ))
