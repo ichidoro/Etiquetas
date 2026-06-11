@@ -726,74 +726,23 @@ export default function App() {
                 {/* Table Content */}
                 <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
                   <div className="overflow-x-auto w-full">
-                    <table className="min-w-[1600px] divide-y divide-slate-200">
+                    <table className="w-full divide-y divide-slate-200">
                       <thead className="bg-slate-50">
                         <tr>
-                          <th
-                            scope="col"
-                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
-                          >
-                            SKU
-                          </th>
-                          <th
-                            scope="col"
-                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
-                          >
-                            Item Name
-                          </th>
-                          <th
-                            scope="col"
-                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
-                          >
-                            Línea de Negocio
-                          </th>
-                          <th
-                            scope="col"
-                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
-                          >
-                            Familia
-                          </th>
-                          <th
-                            scope="col"
-                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
-                          >
-                            EAN-13
-                          </th>
-                          <th
-                            scope="col"
-                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
-                          >
-                            DUN-14
-                          </th>
-                          <th
-                            scope="col"
-                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
-                            translate="no"
-                          >
-                            ISP
-                          </th>
-                          <th
-                            scope="col"
-                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
-                          >
-                            Marca
-                          </th>
-                          <th
-                            scope="col"
-                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
-                          >
-                            Caducidad
-                          </th>
-                          <th
-                            scope="col"
-                            className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200"
-                          >
-                            Estado
-                          </th>
-                          <th scope="col" className="px-2 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200">Barras</th>
-                          <th scope="col" className="px-2 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200">Trazabilidad</th>
-                          <th scope="col" className="px-2 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200">Editar</th>
-                          <th scope="col" className="px-2 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider border-b-2 border-slate-200">Eliminar</th>
+                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">SKU</th>
+                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Nombre</th>
+                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Línea</th>
+                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Familia</th>
+                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">EAN-13</th>
+                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">DUN-14</th>
+                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200" translate="no">ISP</th>
+                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Marca</th>
+                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Cad.</th>
+                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Estado</th>
+                          <th scope="col" className="px-1 py-2 text-center text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Barras</th>
+                          <th scope="col" className="px-1 py-2 text-center text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Trazab.</th>
+                          <th scope="col" className="px-1 py-2 text-center text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Editar</th>
+                          <th scope="col" className="px-1 py-2 text-center text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Eliminar</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-slate-100 relative">
@@ -825,72 +774,50 @@ export default function App() {
                               key={p.id}
                               className="hover:bg-slate-50 transition-colors"
                             >
-                              <td className="px-3 py-3 whitespace-nowrap text-sm font-semibold text-slate-800">
-                                {p.sku}
-                              </td>
-                              <td className="px-3 py-3 text-sm text-slate-500 whitespace-nowrap">
-                                {p.item_name}
-                              </td>
-                              <td className="px-3 py-3 text-sm text-slate-500 whitespace-nowrap">
-                                {p.business_line || "-"}
-                              </td>
-                              <td className="px-3 py-3 text-sm text-slate-500 whitespace-nowrap">
-                                {p.family || "-"}
-                              </td>
-                              <td className="px-3 py-3 whitespace-nowrap">
+                              <td className="px-2 py-2 whitespace-nowrap text-xs font-semibold text-slate-800">{p.sku}</td>
+                              <td className="px-2 py-2 text-xs text-slate-600 max-w-[200px] truncate" title={p.item_name}>{p.item_name}</td>
+                              <td className="px-2 py-2 text-xs text-slate-500 whitespace-nowrap">{p.business_line || "-"}</td>
+                              <td className="px-2 py-2 text-xs text-slate-500 whitespace-nowrap">{p.family || "-"}</td>
+                              <td className="px-2 py-2 whitespace-nowrap">
                                 {p.ean13 ? (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 w-max">
-                                    {p.ean13}
-                                  </span>
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">{p.ean13}</span>
                                 ) : (
-                                  <span className="text-xs text-slate-400">
-                                    -
-                                  </span>
+                                  <span className="text-xs text-slate-400">-</span>
                                 )}
                               </td>
-                              <td className="px-3 py-3 whitespace-nowrap">
+                              <td className="px-2 py-2 whitespace-nowrap">
                                 {p.dun14 ? (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 w-max">
-                                    {p.dun14}
-                                  </span>
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">{p.dun14}</span>
                                 ) : (
-                                  <span className="text-xs text-slate-400">
-                                    -
-                                  </span>
+                                  <span className="text-xs text-slate-400">-</span>
                                 )}
                               </td>
-                              <td className="px-3 py-3 whitespace-nowrap text-xs text-slate-500 font-mono" translate="no">
-                                {p.isp || "-"}
-                              </td>
-                              <td className="px-3 py-3 whitespace-nowrap text-sm text-slate-500">
-                                {p.marca || "-"}
-                              </td>
-                              <td className="px-3 py-3 whitespace-nowrap text-sm text-slate-500">
-                                {p.caducidad !== undefined && p.caducidad !== null ? `${p.caducidad}d` : "-"}
-                              </td>
-                              <td className="px-3 py-3 whitespace-nowrap text-sm">
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${p.activo !== false ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-800'}`}>
-                                  {p.activo !== false ? 'Activo' : 'Inactivo'}
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-slate-500 font-mono" translate="no">{p.isp || "-"}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-slate-500">{p.marca || "-"}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-xs text-slate-500">{p.caducidad !== undefined && p.caducidad !== null ? `${p.caducidad}d` : "-"}</td>
+                              <td className="px-2 py-2 whitespace-nowrap">
+                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${p.activo !== false ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-800'}`}>
+                                  {p.activo !== false ? 'Activo' : 'Inact.'}
                                 </span>
                               </td>
-                              <td className="px-2 py-3 whitespace-nowrap text-center">
-                                <button onClick={() => setPrintingProduct(p)} title="Imprimir Código de Barras" className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer">
-                                  <Printer className="w-5 h-5" />
+                              <td className="px-1 py-2 whitespace-nowrap text-center">
+                                <button onClick={() => setPrintingProduct(p)} title="Imprimir Código de Barras" className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer">
+                                  <Printer className="w-4 h-4" />
                                 </button>
                               </td>
-                              <td className="px-2 py-3 whitespace-nowrap text-center">
-                                <button onClick={() => setTracePrintingProduct(p)} title="Imprimir Trazabilidad" className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors cursor-pointer">
-                                  <ClipboardList className="w-5 h-5" />
+                              <td className="px-1 py-2 whitespace-nowrap text-center">
+                                <button onClick={() => setTracePrintingProduct(p)} title="Imprimir Trazabilidad" className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors cursor-pointer">
+                                  <ClipboardList className="w-4 h-4" />
                                 </button>
                               </td>
-                              <td className="px-2 py-3 whitespace-nowrap text-center">
-                                <button onClick={() => { setEditingProduct(p); setIsFormOpen(true); }} title="Editar" className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer">
-                                  <Edit className="w-5 h-5" />
+                              <td className="px-1 py-2 whitespace-nowrap text-center">
+                                <button onClick={() => { setEditingProduct(p); setIsFormOpen(true); }} title="Editar" className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer">
+                                  <Edit className="w-4 h-4" />
                                 </button>
                               </td>
-                              <td className="px-2 py-3 whitespace-nowrap text-center">
-                                <button onClick={() => handleDelete(p.id!)} title="Eliminar" className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors cursor-pointer">
-                                  <Trash2 className="w-5 h-5" />
+                              <td className="px-1 py-2 whitespace-nowrap text-center">
+                                <button onClick={() => handleDelete(p.id!)} title="Eliminar" className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors cursor-pointer">
+                                  <Trash2 className="w-4 h-4" />
                                 </button>
                               </td>
                             </tr>
