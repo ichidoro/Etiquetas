@@ -108,6 +108,16 @@ async function initDb() {
       "ALTER TABLE label_formats ADD COLUMN verticalGap REAL NOT NULL DEFAULT 2;",
     );
   } catch {}
+  try {
+    await db.execute(
+      "ALTER TABLE label_formats ADD COLUMN labelShift REAL NOT NULL DEFAULT 0;",
+    );
+  } catch {}
+  try {
+    await db.execute(
+      "ALTER TABLE label_formats ADD COLUMN labelTop REAL NOT NULL DEFAULT 0;",
+    );
+  } catch {}
 
   // Migrate products table
   try {
@@ -341,10 +351,12 @@ app.post("/api/label-formats", async (req, res) => {
     showSku,
     showEan13,
     showDun14,
+    labelShift,
+    labelTop,
   } = req.body;
   try {
     await db.execute({
-      sql: "INSERT INTO label_formats (id, name, width, height, dpi, darkness, printSpeed, orientation, marginTop, marginBottom, marginLeft, marginRight, labelsPerRow, labelsPerColumn, horizontalGap, verticalGap, showName, showSku, showEan13, showDun14) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      sql: "INSERT INTO label_formats (id, name, width, height, dpi, darkness, printSpeed, orientation, marginTop, marginBottom, marginLeft, marginRight, labelsPerRow, labelsPerColumn, horizontalGap, verticalGap, showName, showSku, showEan13, showDun14, labelShift, labelTop) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       args: [
         id,
         name,
@@ -366,6 +378,8 @@ app.post("/api/label-formats", async (req, res) => {
         showSku ? 1 : 0,
         showEan13 ? 1 : 0,
         showDun14 ? 1 : 0,
+        labelShift ?? 0,
+        labelTop ?? 0,
       ],
     });
     res.status(201).json(req.body);
@@ -399,10 +413,12 @@ app.put("/api/label-formats/:id", async (req, res) => {
     showSku,
     showEan13,
     showDun14,
+    labelShift,
+    labelTop,
   } = req.body;
   try {
     await db.execute({
-      sql: "UPDATE label_formats SET name=?, width=?, height=?, dpi=?, darkness=?, printSpeed=?, orientation=?, marginTop=?, marginBottom=?, marginLeft=?, marginRight=?, labelsPerRow=?, labelsPerColumn=?, horizontalGap=?, verticalGap=?, showName=?, showSku=?, showEan13=?, showDun14=? WHERE id=?",
+      sql: "UPDATE label_formats SET name=?, width=?, height=?, dpi=?, darkness=?, printSpeed=?, orientation=?, marginTop=?, marginBottom=?, marginLeft=?, marginRight=?, labelsPerRow=?, labelsPerColumn=?, horizontalGap=?, verticalGap=?, showName=?, showSku=?, showEan13=?, showDun14=?, labelShift=?, labelTop=? WHERE id=?",
       args: [
         name,
         width,
@@ -423,6 +439,8 @@ app.put("/api/label-formats/:id", async (req, res) => {
         showSku ? 1 : 0,
         showEan13 ? 1 : 0,
         showDun14 ? 1 : 0,
+        labelShift ?? 0,
+        labelTop ?? 0,
         id,
       ],
     });

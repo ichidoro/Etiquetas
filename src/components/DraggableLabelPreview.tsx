@@ -74,9 +74,15 @@ export function DraggableLabelPreview({
     if (!pos) return;
 
     if (interaction.type === 'drag') {
-      const newX = (e.clientX - labelRect.left - interaction.offsetX) / scale;
+      // Calculate X as offset from centered base position
+      const elementWidthMm = format.width * 0.85;
+      const baseCenterMm = (format.width - elementWidthMm) / 2;
+      const rawXMm = (e.clientX - labelRect.left - interaction.offsetX) / scale;
+      const newX = rawXMm - baseCenterMm; // offset from center (0 = centered)
       const newY = (e.clientY - labelRect.top - interaction.offsetY) / scale;
-      const clampedX = Math.max(-5, Math.min(newX, format.width - 3));
+      // Allow generous range: half the label width in either direction
+      const maxOffset = format.width / 2;
+      const clampedX = Math.max(-maxOffset, Math.min(newX, maxOffset));
       const clampedY = Math.max(-2, Math.min(newY, format.height - pos.h));
       const newPositions = positions.map(p =>
         p.id === interaction.elementId
@@ -134,13 +140,14 @@ export function DraggableLabelPreview({
     const isResizing = isActive && interaction?.type === 'resize';
     const heightPx = mmToPx(pos.h);
 
-    // Center element horizontally within the label
+    // Center element horizontally within the label, offset by pos.x
     const elementWidthPx = mmToPx(format.width) * 0.85;
-    const centerX = (mmToPx(format.width) - elementWidthPx) / 2;
+    const baseCenterX = (mmToPx(format.width) - elementWidthPx) / 2;
+    const xOffsetPx = mmToPx(pos.x);
 
     const style: React.CSSProperties = {
       position: 'absolute',
-      left: `${centerX}px`,
+      left: `${baseCenterX + xOffsetPx}px`,
       top: `${mmToPx(pos.y)}px`,
       width: `${elementWidthPx}px`,
       height: `${heightPx}px`,
