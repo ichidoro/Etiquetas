@@ -6,10 +6,14 @@
  *   GET  /api/system-printers  → list Windows printers
  *   POST /api/print/usb        → send ZPL to a named printer
  * 
+ * Auto-registers itself in the Cloud DB so other PCs on the
+ * same WiFi can discover and use it automatically.
+ * 
  * Usage: node print-bridge.mjs
  */
 
 import http from "node:http";
+import https from "node:https";
 import { execSync, exec } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -17,6 +21,20 @@ import os from "node:os";
 
 const PORT = 3000;
 const CLOUD_URL = "https://zebra-bridge-pro-684852789183.us-central1.run.app";
+
+// ── Get local LAN IP address ─────────────────────────────────────────────────
+function getLocalIp() {
+  const nets = os.networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      // Skip loopback and non-IPv4
+      if (net.family === "IPv4" && !net.internal) {
+        return net.address;
+      }
+    }
+  }
+  return "127.0.0.1";
+}
 
 // ── CORS headers for Cloud access ────────────────────────────────────────────
 function setCors(res, req) {
@@ -67,6 +85,52 @@ function printZpl(zpl, printerName) {
       }
     });
   });
+}
+
+// ── Auto-register with Cloud DB ──────────────────────────────────────────────
+function registerWithCloud(localIp, printers) {
+  const hostname = os.hostname();
+  const id = `bridge-${hostname}-${localIp}`.replace(/[^a-zA-Z0-9\-\.]/g, '_');
+  
+  const data = JSON.stringify({
+    id,
+    hostname,
+    localIp,
+    port: PORT,
+    printers: printers.map(p => ({ Name: p.Name, DriverName: p.DriverName }))
+  });
+
+  const url = new URL(`${CLOUD_URL}/api/bridges/register`);
+  const options = {
+    hostname: url.hostname,
+    port: 443,
+    path: url.pathname,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(data),
+    },
+    timeout: 10000,
+  };
+
+  const req = https.request(options, (res) => {
+    let body = "";
+    res.on("data", (c) => body += c);
+    res.on("end", () => {
+      if (res.statusCode === 200) {
+        console.log(`☁️  Registrado en Cloud: ${hostname} (${localIp})`);
+      } else {
+        console.log(`⚠️  Cloud registro falló: ${res.statusCode} ${body}`);
+      }
+    });
+  });
+
+  req.on("error", (err) => {
+    console.log(`⚠️  Cloud no disponible: ${err.message}`);
+  });
+
+  req.write(data);
+  req.end();
 }
 
 // ── HTTP Server ──────────────────────────────────────────────────────────────
@@ -126,20 +190,29 @@ const server = http.createServer(async (req, res) => {
   res.end("Not found");
 });
 
-server.listen(PORT, () => {
+// Listen on all interfaces (0.0.0.0) so other PCs on the LAN can reach us
+server.listen(PORT, "0.0.0.0", () => {
   const printers = getSystemPrinters();
+  const localIp = getLocalIp();
+
   console.log("");
   console.log("╔══════════════════════════════════════════════════╗");
   console.log("║       🖨️  ZebraBridge Print Server              ║");
   console.log("╠══════════════════════════════════════════════════╣");
-  console.log(`║  Puerto:     http://localhost:${PORT}              ║`);
+  console.log(`║  Local:      http://localhost:${PORT}              ║`);
+  console.log(`║  Red WiFi:   http://${localIp.padEnd(15)}:${PORT}    ║`);
   console.log(`║  Impresoras: ${String(printers.length).padEnd(2)} detectadas                    ║`);
-  console.log(`║  Cloud URL:  ...run.app                         ║`);
   console.log("╠══════════════════════════════════════════════════╣");
-  console.log("║  ⚠️  NO CERRAR esta ventana mientras uses la     ║");
-  console.log("║     aplicación desde la nube.                    ║");
+  console.log("║  ✅ Accesible desde otros PCs en la misma WiFi   ║");
   console.log("╚══════════════════════════════════════════════════╝");
   console.log("");
   printers.forEach((p) => console.log(`  ✅ ${p.Name}`));
   console.log("");
+
+  // Register immediately and then every 2 minutes
+  registerWithCloud(localIp, printers);
+  setInterval(() => {
+    const currentPrinters = getSystemPrinters();
+    registerWithCloud(localIp, currentPrinters);
+  }, 2 * 60 * 1000); // Every 2 minutes
 });

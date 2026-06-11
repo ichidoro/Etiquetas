@@ -1725,6 +1725,13 @@ for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":3000 " ^| findstr "L
 )
 timeout /t 2 /nobreak >nul
 
+:: ── 6b. Abrir firewall para WiFi ─────────────────────
+echo [..] Abriendo firewall para impresion WiFi...
+netsh advfirewall firewall delete rule name="ZebraBridge" >nul 2>&1
+netsh advfirewall firewall add rule name="ZebraBridge" dir=in action=allow protocol=TCP localport=3000 >nul 2>&1
+echo [OK] Firewall configurado
+
+
 :: ── 7. Iniciar en segundo plano ───────────────────────
 echo [..] Iniciando servidor...
 start "" wscript.exe "%ZEBRA_DIR%\launch-silent.vbs"

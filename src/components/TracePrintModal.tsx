@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { X, Printer, Download, Copy, Check, Code, Minus, Plus, Calendar, Move, RotateCcw, Save, User, Settings2, Usb, Wifi, WifiOff } from "lucide-react";
 import { Product, LabelFormat } from "../types";
 import { isWebUSBSupported, getAlreadyPairedPrinters, requestUSBPrinter, sendZPLviaUSB, forgetUSBPrinter } from "../utils/webusb";
-import { isRunningOnCloud, isLocalServerAvailable, fetchPrinters, sendPrintJob } from "../utils/printBridge";
+import { isRunningOnCloud, discoverBridgeUrl, fetchPrinters, sendPrintJob } from "../utils/printBridge";
 
 // ─── localStorage helpers ───────────────────────────────────────────────────
 const PRINTER_STORAGE_KEY = "zebra-default-printer";
@@ -434,6 +434,7 @@ export function TracePrintModal({
 
   // Print Bridge state
   const [localBridgeAvailable, setLocalBridgeAvailable] = useState(false);
+  const [bridgeUrl, setBridgeUrl] = useState<string | null>(null);
   const [onCloud] = useState(isRunningOnCloud());
   const [bridgeChecked, setBridgeChecked] = useState(false);
 
@@ -446,16 +447,17 @@ export function TracePrintModal({
     const savedPrinter = loadDefaultPrinter();
 
     const loadPrinters = async () => {
-      // Step 1: If on Cloud, check if local server is available
-      let useBridge = false;
+      // Step 1: If on Cloud, discover bridge URL
+      let discoveredUrl: string | null = null;
       if (onCloud) {
-        useBridge = await isLocalServerAvailable();
-        setLocalBridgeAvailable(useBridge);
+        discoveredUrl = await discoverBridgeUrl();
+        setBridgeUrl(discoveredUrl);
+        setLocalBridgeAvailable(!!discoveredUrl);
       }
       setBridgeChecked(true);
 
-      // Step 2: Fetch printers (from local bridge or same-server)
-      const printers = await fetchPrinters(useBridge);
+      // Step 2: Fetch printers (from discovered bridge or same-server)
+      const printers = await fetchPrinters(!!discoveredUrl, discoveredUrl);
       setSystemPrinters(printers);
 
       if (printers.length > 0) {
@@ -467,7 +469,7 @@ export function TracePrintModal({
           if (zebra) setSelectedSystemPrinter(zebra.Name);
           else setSelectedSystemPrinter(printers[0].Name);
         }
-      } else if (onCloud && !useBridge) {
+      } else if (onCloud && !discoveredUrl) {
         // On Cloud, no local server → try WebUSB as last resort
         if (webUsbSupported) {
           setUseWebUsb(true);
@@ -516,7 +518,7 @@ export function TracePrintModal({
       // Server-side or Bridge printing
       if (!selectedSystemPrinter) { onShowToast?.("Selecciona una impresora", "error"); return; }
       setUsbPrinting(true);
-      const result = await sendPrintJob(zplCode, selectedSystemPrinter, localBridgeAvailable);
+      const result = await sendPrintJob(zplCode, selectedSystemPrinter, localBridgeAvailable, bridgeUrl);
       if (result.ok) onShowToast?.(`✅ ${result.message}`, "success");
       else onShowToast?.(result.message, "error");
       setUsbPrinting(false);

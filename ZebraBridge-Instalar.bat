@@ -58,6 +58,16 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3000 " ^| findstr "LISTENIN
 )
 timeout /t 1 /nobreak >nul
 
+:: ── 5b. Open firewall for LAN access ────────────────────────
+echo Opening firewall for WiFi printing...
+netsh advfirewall firewall delete rule name="ZebraBridge" >nul 2>nul
+netsh advfirewall firewall add rule name="ZebraBridge" dir=in action=allow protocol=TCP localport=3000 >nul 2>nul
+if %ERRORLEVEL% equ 0 (
+    echo [OK] Firewall abierto - otros PCs en la WiFi pueden imprimir
+) else (
+    echo [AVISO] No se pudo abrir el firewall. Ejecuta como administrador si necesitas imprimir desde otros PCs.
+)
+
 :: ── 6. Launch silently NOW ───────────────────────────────────
 echo Starting ZebraBridge Print Server...
 start "" wscript.exe "%VBS_LAUNCHER%"

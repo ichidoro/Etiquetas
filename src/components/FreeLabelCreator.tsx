@@ -5,7 +5,7 @@ import {
   GripVertical, Copy, Check, Code, Move, X,
 } from "lucide-react";
 import { LabelFormat } from "../types";
-import { isRunningOnCloud, isLocalServerAvailable, fetchPrinters, sendPrintJob } from "../utils/printBridge";
+import { isRunningOnCloud, discoverBridgeUrl, fetchPrinters, sendPrintJob } from "../utils/printBridge";
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 interface LabelElement {
@@ -434,6 +434,7 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
   const [usbPrinting, setUsbPrinting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [localBridgeAvailable, setLocalBridgeAvailable] = useState(false);
+  const [bridgeUrl, setBridgeUrl] = useState<string | null>(null);
 
   // ── Template state
   const [savedDesigns, setSavedDesigns] = useState<SavedDesign[]>([]);
@@ -451,13 +452,14 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
 
     const loadPrinters = async () => {
       const onCloud = isRunningOnCloud();
-      let useBridge = false;
+      let discoveredUrl: string | null = null;
       if (onCloud) {
-        useBridge = await isLocalServerAvailable();
-        setLocalBridgeAvailable(useBridge);
+        discoveredUrl = await discoverBridgeUrl();
+        setBridgeUrl(discoveredUrl);
+        setLocalBridgeAvailable(!!discoveredUrl);
       }
 
-      const printers = await fetchPrinters(useBridge);
+      const printers = await fetchPrinters(!!discoveredUrl, discoveredUrl);
       setSystemPrinters(printers);
       if (savedPrinter && printers.some((p) => p.Name === savedPrinter)) {
         setSelectedSystemPrinter(savedPrinter);
@@ -647,7 +649,7 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
     }
     setUsbPrinting(true);
     try {
-      const result = await sendPrintJob(zplCode, selectedSystemPrinter, localBridgeAvailable);
+      const result = await sendPrintJob(zplCode, selectedSystemPrinter, localBridgeAvailable, bridgeUrl);
       if (result.ok) onShowToast?.(`✅ ${result.message}`, "success");
       else onShowToast?.(result.message || "Error de impresión", "error");
     } catch (e: any) {

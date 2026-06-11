@@ -4,7 +4,7 @@ import { Product, LabelFormat, ElementPosition, SavedLabelLayout } from "../type
 import { DraggableLabelPreview } from "./DraggableLabelPreview";
 import { generateZpl, calculateDefaultPositions, generateCalibrationZpl } from "../utils/zebra";
 import { isWebUSBSupported, getAlreadyPairedPrinters, requestUSBPrinter, sendZPLviaUSB, forgetUSBPrinter } from "../utils/webusb";
-import { isRunningOnCloud, isLocalServerAvailable, fetchPrinters, sendPrintJob } from "../utils/printBridge";
+import { isRunningOnCloud, discoverBridgeUrl, fetchPrinters, sendPrintJob } from "../utils/printBridge";
 
 // localStorage keys
 const LAYOUT_STORAGE_KEY = 'zebra-label-layout';
@@ -92,6 +92,7 @@ export function PrintModal({
 
   // Print Bridge state
   const [localBridgeAvailable, setLocalBridgeAvailable] = useState(false);
+  const [bridgeUrl, setBridgeUrl] = useState<string | null>(null);
   const [onCloud] = useState(isRunningOnCloud());
 
   // WebUSB state (last resort fallback)
@@ -167,13 +168,14 @@ export function PrintModal({
     const savedPrinter = loadDefaultPrinter();
 
     const loadPrinters = async () => {
-      let useBridge = false;
+      let discoveredUrl: string | null = null;
       if (onCloud) {
-        useBridge = await isLocalServerAvailable();
-        setLocalBridgeAvailable(useBridge);
+        discoveredUrl = await discoverBridgeUrl();
+        setBridgeUrl(discoveredUrl);
+        setLocalBridgeAvailable(!!discoveredUrl);
       }
 
-      const printers = await fetchPrinters(useBridge);
+      const printers = await fetchPrinters(!!discoveredUrl, discoveredUrl);
       setSystemPrinters(printers);
 
       if (printers.length > 0) {
@@ -184,7 +186,7 @@ export function PrintModal({
           if (zebra) setSelectedSystemPrinter(zebra.Name);
           else setSelectedSystemPrinter(printers[0].Name);
         }
-      } else if (onCloud && !useBridge && webUsbSupported) {
+      } else if (onCloud && !discoveredUrl && webUsbSupported) {
         setUseWebUsb(true);
         const paired = await getAlreadyPairedPrinters();
         if (paired.length > 0) setWebUsbDevice(paired[0]);
@@ -243,7 +245,7 @@ export function PrintModal({
     } else {
       if (!selectedSystemPrinter) { onShowToast?.('Selecciona una impresora del sistema', 'error'); return; }
       setUsbPrinting(true);
-      const result = await sendPrintJob(zplCode, selectedSystemPrinter, localBridgeAvailable);
+      const result = await sendPrintJob(zplCode, selectedSystemPrinter, localBridgeAvailable, bridgeUrl);
       if (result.ok) onShowToast?.(`✅ ${result.message}`, 'success');
       else onShowToast?.(result.message, 'error');
       setUsbPrinting(false);
@@ -511,7 +513,7 @@ export function PrintModal({
                     const calZpl = generateCalibrationZpl(currentFormat);
                     if (selectedSystemPrinter) {
                       try {
-                        await sendPrintJob(calZpl, selectedSystemPrinter, localBridgeAvailable);
+                        await sendPrintJob(calZpl, selectedSystemPrinter, localBridgeAvailable, bridgeUrl);
                         onShowToast?.('Test de calibración enviado', 'success');
                       } catch {
                         onShowToast?.('Error al enviar calibración', 'error');

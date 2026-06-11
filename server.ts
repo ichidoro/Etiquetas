@@ -163,6 +163,18 @@ async function initDb() {
     )`);
   } catch {}
 
+  // Table: print_bridges (auto-discovery of LAN print servers)
+  try {
+    await db.execute(`CREATE TABLE IF NOT EXISTS print_bridges (
+      id TEXT PRIMARY KEY,
+      hostname TEXT NOT NULL,
+      localIp TEXT NOT NULL,
+      port INTEGER NOT NULL DEFAULT 3000,
+      printers TEXT NOT NULL DEFAULT '[]',
+      lastSeen TEXT NOT NULL DEFAULT (datetime('now'))
+    )`);
+  } catch {}
+
   // Seed label formats only if empty (preserves cloud data)
   try {
     const formatsResult = await db.execute(
@@ -308,6 +320,45 @@ app.post("/api/products/batch", async (req, res) => {
     res
       .status(500)
       .json({ error: `Failed to batch insert products: ${error.message}` });
+  }
+});
+
+// ── Print Bridges API (auto-discovery) ────────────────────────────────────
+app.post("/api/bridges/register", async (req, res) => {
+  try {
+    const { id, hostname, localIp, port, printers } = req.body;
+    if (!id || !localIp) {
+      return res.status(400).json({ error: "Missing id or localIp" });
+    }
+    await db.execute({
+      sql: `INSERT INTO print_bridges (id, hostname, localIp, port, printers, lastSeen)
+            VALUES (?, ?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(id) DO UPDATE SET
+              hostname = ?, localIp = ?, port = ?, printers = ?, lastSeen = datetime('now')`,
+      args: [id, hostname || '', localIp, port || 3000, JSON.stringify(printers || []),
+             hostname || '', localIp, port || 3000, JSON.stringify(printers || [])]
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("Bridge register error:", error);
+    res.status(500).json({ error: "Failed to register bridge" });
+  }
+});
+
+app.get("/api/bridges", async (req, res) => {
+  try {
+    // Only return bridges seen in the last 5 minutes
+    const result = await db.execute(
+      "SELECT * FROM print_bridges WHERE lastSeen > datetime('now', '-5 minutes')"
+    );
+    const bridges = result.rows.map((row) => ({
+      ...row,
+      printers: JSON.parse((row.printers as string) || '[]')
+    }));
+    res.json(bridges);
+  } catch (error) {
+    console.error("Bridge list error:", error);
+    res.status(500).json({ error: "Failed to list bridges" });
   }
 });
 
