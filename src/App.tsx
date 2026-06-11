@@ -1544,7 +1544,7 @@ export default function App() {
                           <Copy className="w-4 h-4" />
                         </button>
                       </div>
-                      <p className="text-xs text-slate-400 mt-2">⚠️ Desde la nube puedes ver datos pero NO imprimir. Para imprimir necesitas instalar localmente.</p>
+                      <p className="text-xs text-slate-400 mt-2">⚠️ Desde la nube puedes ver datos pero NO imprimir. Para imprimir necesitas seguir los pasos de abajo.</p>
                     </div>
 
                     {/* Steps */}
@@ -1553,13 +1553,13 @@ export default function App() {
                         <Download className="w-4 h-4 text-emerald-500" /> Pasos para instalar (con impresión)
                       </h3>
 
-                      <div className="space-y-4">
+                      <div className="space-y-5">
                         {/* Step 1 */}
                         <div className="flex gap-4">
                           <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm flex-shrink-0">1</div>
                           <div className="flex-1">
                             <h4 className="font-semibold text-slate-800 text-sm">Instalar Node.js</h4>
-                            <p className="text-xs text-slate-500 mb-2">Descarga e instala Node.js (LTS) en el computador destino. Se descarga el instalador .msi directamente.</p>
+                            <p className="text-xs text-slate-500 mb-2">Descarga e instala Node.js (LTS). Siguiente → Siguiente → Finalizar. <strong>Reiniciar el PC después de instalar.</strong></p>
                             <button
                               onClick={async () => {
                                 try {
@@ -1586,126 +1586,166 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* Step 2 */}
+                        {/* Step 2 - Single BAT with embedded server */}
                         <div className="flex gap-4">
                           <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm flex-shrink-0">2</div>
                           <div className="flex-1">
-                            <h4 className="font-semibold text-slate-800 text-sm">Instalar Git</h4>
-                            <p className="text-xs text-slate-500 mb-2">Necesario para descargar el código fuente. Se descarga el instalador .exe directamente.</p>
-                            <button
-                              onClick={async () => {
-                                try {
-                                  showToast('Obteniendo última versión de Git...', 'success');
-                                  const res = await fetch('https://api.github.com/repos/git-for-windows/git/releases/latest');
-                                  const data = await res.json();
-                                  const asset = data.assets?.find((a: any) => a.name.match(/Git-.*64-bit\.exe$/));
-                                  if (asset) {
-                                    window.open(asset.browser_download_url, '_blank');
-                                    showToast(`Descargando ${asset.name}`, 'success');
-                                  } else {
-                                    window.open('https://git-scm.com/download/win', '_blank');
-                                  }
-                                } catch {
-                                  window.open('https://git-scm.com/download/win', '_blank');
-                                }
-                              }}
-                              className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
-                            >
-                              <Download className="w-4 h-4" /> Descargar Git para Windows (.exe)
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Step 3 */}
-                        <div className="flex gap-4">
-                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm flex-shrink-0">3</div>
-                          <div className="flex-1">
                             <h4 className="font-semibold text-slate-800 text-sm">Descargar y ejecutar el instalador</h4>
-                            <p className="text-xs text-slate-500 mb-2">Un solo archivo. Instala todo, configura inicio automático y arranca el servidor.</p>
+                            <p className="text-xs text-slate-500 mb-2">Un solo archivo. <strong>No necesita Git ni npm.</strong> Crea el servidor, configura inicio automático y corre en segundo plano (invisible, sin terminal).</p>
                             <button
                               onClick={() => {
-                                const bat = `@echo off
+                                const bat = String.raw`@echo off
 chcp 65001 >nul 2>&1
-echo ============================================
-echo   ZebraBridge Pro - Instalacion Completa
-echo ============================================
+title ZebraBridge - Instalando...
+echo.
+echo ====================================================
+echo   ZebraBridge Pro - Instalador Automatico
+echo ====================================================
 echo.
 
-node --version >nul 2>&1
+:: ── 1. Verificar Node.js ──────────────────────────────
+where node >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [ERROR] Node.js no esta instalado.
-    echo Descarga desde: https://nodejs.org
+    echo [ERROR] Node.js NO esta instalado.
+    echo.
+    echo    Descargalo desde: https://nodejs.org
+    echo    Instala con Siguiente, Siguiente, Finalizar.
+    echo    REINICIA el PC despues de instalar.
+    echo    Luego ejecuta este archivo de nuevo.
+    echo.
     pause
     exit /b 1
 )
-echo [OK] Node.js encontrado
+for /f "tokens=*" %%v in ('node --version') do echo [OK] Node.js %%v encontrado
 
-git --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [ERROR] Git no esta instalado.
-    echo Descarga desde: https://git-scm.com
-    pause
-    exit /b 1
+:: ── 2. Crear carpeta de trabajo ───────────────────────
+set "ZEBRA_DIR=%USERPROFILE%\ZebraBridge"
+if not exist "%ZEBRA_DIR%" mkdir "%ZEBRA_DIR%"
+echo [OK] Carpeta: %ZEBRA_DIR%
+
+:: ── 3. Generar servidor de impresion ──────────────────
+echo [..] Creando servidor de impresion...
+
+> "%ZEBRA_DIR%\print-bridge.mjs" (
+echo import http from "node:http";
+echo import { execSync, exec } from "node:child_process";
+echo import fs from "node:fs";
+echo import path from "node:path";
+echo import os from "node:os";
+echo const PORT = 3000;
+echo function setCors(res, req) {
+echo   const origin = req.headers.origin || "*";
+echo   res.setHeader("Access-Control-Allow-Origin", origin);
+echo   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+echo   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+echo }
+echo function getSystemPrinters() {
+echo   try {
+echo     const ps = 'Get-Printer ^| Select-Object Name, PortName, DriverName ^| ConvertTo-Json -Compress';
+echo     const raw = execSync('powershell -NoProfile -Command "' + ps + '"', { encoding: "utf-8", timeout: 10000 }).trim();
+echo     const parsed = JSON.parse(raw);
+echo     return Array.isArray(parsed) ? parsed : [parsed];
+echo   } catch (err) { return []; }
+echo }
+echo function printZpl(zpl, printerName) {
+echo   return new Promise((resolve, reject) =^> {
+echo     const tmpFile = path.join(os.tmpdir(), 'zpl_' + Date.now() + '.txt');
+echo     fs.writeFileSync(tmpFile, zpl, "utf-8");
+echo     const safeName = printerName.replace(/"/g, '\\"');
+echo     const cmd = 'powershell -NoProfile -Command "Copy-Item -Path \'' + tmpFile + '\' -Destination \'\\\\localhost\\' + safeName + '\' -Force"';
+echo     exec(cmd, { timeout: 15000 }, (err) =^> {
+echo       try { fs.unlinkSync(tmpFile); } catch(e) {}
+echo       if (err) reject(err); else resolve();
+echo     });
+echo   });
+echo }
+echo const server = http.createServer(async (req, res) =^> {
+echo   setCors(res, req);
+echo   if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
+echo   const url = new URL(req.url, 'http://localhost:' + PORT);
+echo   if (url.pathname === "/api/system-printers" ^&^& req.method === "GET") {
+echo     res.writeHead(200, { "Content-Type": "application/json" });
+echo     res.end(JSON.stringify(getSystemPrinters())); return;
+echo   }
+echo   if (url.pathname === "/api/print/usb" ^&^& req.method === "POST") {
+echo     let body = "";
+echo     req.on("data", (c) =^> body += c);
+echo     req.on("end", async () =^> {
+echo       try {
+echo         const { zpl, printerName } = JSON.parse(body);
+echo         if (!zpl ^|^| !printerName) { res.writeHead(400); res.end('{"error":"Faltan datos"}'); return; }
+echo         await printZpl(zpl, printerName);
+echo         console.log('Impreso en ' + printerName);
+echo         res.writeHead(200, { "Content-Type": "application/json" });
+echo         res.end(JSON.stringify({ message: 'Impreso en ' + printerName }));
+echo       } catch (err) {
+echo         res.writeHead(500, { "Content-Type": "application/json" });
+echo         res.end(JSON.stringify({ error: err.message }));
+echo       }
+echo     }); return;
+echo   }
+echo   if (url.pathname === "/" ^|^| url.pathname === "/health") {
+echo     res.writeHead(200, { "Content-Type": "application/json" });
+echo     res.end('{"status":"ok"}'); return;
+echo   }
+echo   res.writeHead(404); res.end("Not found");
+echo });
+echo server.listen(PORT, () =^> {
+echo   const p = getSystemPrinters();
+echo   console.log('ZebraBridge Print Server activo en puerto ' + PORT);
+echo   console.log(p.length + ' impresoras detectadas');
+echo   p.forEach((x) =^> console.log('  - ' + x.Name));
+echo });
 )
-echo [OK] Git encontrado
+echo [OK] Servidor creado
 
-echo.
-echo Descargando aplicacion...
-if exist "Etiquetas" (
-    cd Etiquetas
-    git pull
-) else (
-    git clone https://github.com/ichidoro/Etiquetas.git
-    cd Etiquetas
+:: ── 4. Crear lanzador silencioso (VBS) ────────────────
+echo [..] Configurando modo invisible...
+> "%ZEBRA_DIR%\launch-silent.vbs" (
+echo Set WshShell = CreateObject("WScript.Shell"^)
+echo WshShell.CurrentDirectory = "%ZEBRA_DIR%"
+echo WshShell.Run "node ""%ZEBRA_DIR%\print-bridge.mjs""", 0, False
 )
+echo [OK] Modo invisible configurado
 
-echo.
-echo Creando configuracion...
-(
-echo TURSO_DATABASE_URL="libsql://unicodiq-ichidoro.aws-us-east-1.turso.io"
-echo TURSO_AUTH_TOKEN="eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODA5NTA0OTMsImlkIjoiMDE5ZWE4ZWItY2QwMS03ODliLWJlOTMtZGZkMGY1YzFjMjJlIiwicmlkIjoiZTJhYzM5YzEtYjhhMS00NzFmLTk3YjctN2YyNjg5ZGFjZjAwIn0.iNI0xsEowQvZt4PoD4mcxrjfzyxwgU5tmY0VZ1yZImyB7IBZ_FihHAU5n7Acc6npckKP0C5xuziIOuW3lAa9Ag"
-) > .env
-echo [OK] Configuracion creada
-
-echo.
-echo Instalando dependencias (puede tardar unos minutos)...
-call npm install
-
-echo.
-echo Configurando inicio automatico con Windows...
-set "VBSPATH=%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\zebra_servicio.vbs"
-set "APPDIR=%cd%"
-
-> "%VBSPATH%" (
-echo Dim WshShell, fso
-echo Set WshShell = CreateObject^("WScript.Shell"^)
-echo Set fso = CreateObject^("Scripting.FileSystemObject"^)
-echo Dim appPath
-echo appPath = "%APPDIR%"
-echo If Not fso.FileExists^(appPath ^& "\\package.json"^) Then WScript.Quit
-echo WshShell.Run "cmd /c cd /d """ ^& appPath ^& """ ^&^& npm run dev", 0, False
-)
-
-if exist "%VBSPATH%" (
-    echo [OK] El servidor arrancara automaticamente al encender el PC
+:: ── 5. Inicio automatico con Windows ──────────────────
+echo [..] Configurando inicio automatico...
+set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
+copy /Y "%ZEBRA_DIR%\launch-silent.vbs" "%STARTUP%\ZebraBridge.vbs" >nul 2>&1
+if exist "%STARTUP%\ZebraBridge.vbs" (
+    echo [OK] Inicio automatico configurado
 ) else (
     echo [AVISO] No se pudo configurar inicio automatico
 )
 
+:: ── 6. Detener instancias anteriores ──────────────────
+echo [..] Limpiando procesos anteriores...
+for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":3000 " ^| findstr "LISTENING"') do (
+    taskkill /PID %%a /F >nul 2>&1
+)
+timeout /t 2 /nobreak >nul
+
+:: ── 7. Iniciar en segundo plano ───────────────────────
+echo [..] Iniciando servidor...
+start "" wscript.exe "%ZEBRA_DIR%\launch-silent.vbs"
+timeout /t 3 /nobreak >nul
+
+:: ── 8. Verificar ──────────────────────────────────────
+powershell -NoProfile -Command "try { Invoke-WebRequest -Uri 'http://localhost:3000/health' -UseBasicParsing -TimeoutSec 5 | Out-Null; Write-Host '[OK] Servidor ACTIVO en puerto 3000' } catch { Write-Host '[ERROR] El servidor no responde' }"
+
 echo.
-echo ============================================
+echo ====================================================
 echo   INSTALACION COMPLETA
 echo.
-echo   El servidor de impresion se iniciara
-echo   AUTOMATICAMENTE cada vez que enciendas
-echo   este computador.
+echo   El servidor corre en SEGUNDO PLANO (invisible).
+echo   Se iniciara AUTOMATICAMENTE al encender el PC.
 echo.
 echo   Abre en tu navegador:
 echo   https://zebra-bridge-pro-684852789183.us-central1.run.app
-echo ============================================
 echo.
-echo Iniciando servidor por primera vez...
-call npm run dev
+echo   Esta ventana se cerrara sola en 15 segundos.
+echo ====================================================
+timeout /t 15
 `;
                                 const blob = new Blob([bat], { type: 'application/x-bat' });
                                 const url = URL.createObjectURL(blob);
@@ -1722,16 +1762,16 @@ call npm run dev
                             >
                               <Download className="w-4 h-4" /> Descargar instalar_zebra.bat
                             </button>
-                            <p className="text-[10px] text-slate-400 mt-1">Haz clic derecho → Ejecutar como administrador</p>
+                            <p className="text-[10px] text-slate-400 mt-1">Doble clic para ejecutar. NO necesita Git ni npm.</p>
                           </div>
                         </div>
 
-                        {/* Step 4 */}
+                        {/* Done */}
                         <div className="flex gap-4">
                           <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm flex-shrink-0">✓</div>
                           <div className="flex-1">
                             <h4 className="font-semibold text-slate-800 text-sm">¡Listo! Solo usa la URL de siempre</h4>
-                            <p className="text-xs text-slate-500">El servidor arranca solo al encender el PC. Abre <code className="bg-slate-100 px-1.5 py-0.5 rounded text-blue-600 font-medium">https://zebra-bridge-pro-...run.app</code> y la impresora se detectará automáticamente.</p>
+                            <p className="text-xs text-slate-500">El servidor arranca solo al encender el PC (invisible, sin terminal). Abre <code className="bg-slate-100 px-1.5 py-0.5 rounded text-blue-600 font-medium">https://zebra-bridge-pro-...run.app</code> y la impresora se detectará automáticamente.</p>
                           </div>
                         </div>
                       </div>
@@ -1744,6 +1784,7 @@ call npm run dev
                         <li>• <strong>Datos compartidos:</strong> Todos los PCs se conectan a la misma base de datos Turso Cloud</li>
                         <li>• <strong>Impresión local:</strong> Cada PC detecta sus propias impresoras y envía ZPL directamente</li>
                         <li>• <strong>Sin conflictos:</strong> Los productos, operadores y formatos se sincronizan en tiempo real</li>
+                        <li>• <strong>Invisible:</strong> El servidor corre en segundo plano, el usuario no ve ninguna terminal</li>
                       </ul>
                     </div>
                   </div>
