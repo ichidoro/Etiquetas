@@ -62,26 +62,75 @@ function getSystemPrinters() {
   }
 }
 
-// ── Send ZPL to printer via temp file + raw print ────────────────────────────
+// ── Send ZPL to printer via Windows Spooler API (winspool.drv) ───────────────
 function printZpl(zpl, printerName) {
   return new Promise((resolve, reject) => {
-    const tmpFile = path.join(os.tmpdir(), `zpl_${Date.now()}.txt`);
-    fs.writeFileSync(tmpFile, zpl, "utf-8");
+    const tmpZpl = path.join(os.tmpdir(), `zpl_${Date.now()}.txt`);
+    const tmpPs1 = path.join(os.tmpdir(), `rawprint_${Date.now()}.ps1`);
+    fs.writeFileSync(tmpZpl, zpl, "utf-8");
 
-    const safeName = printerName.replace(/"/g, '\\"');
-    const cmd = `powershell -NoProfile -Command "Copy-Item -Path '${tmpFile}' -Destination '\\\\localhost\\${safeName}' -Force"`;
+    // Write raw-print PowerShell script using Windows Spooler API
+    const ps1Content = `param([string]$PrinterName,[string]$FilePath)
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class RawPrint {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DOCINFOA {
+        [MarshalAs(UnmanagedType.LPStr)] public string pDocName;
+        [MarshalAs(UnmanagedType.LPStr)] public string pOutputFile;
+        [MarshalAs(UnmanagedType.LPStr)] public string pDataType;
+    }
+    [DllImport("winspool.drv", SetLastError=true, CharSet=CharSet.Auto)]
+    public static extern bool OpenPrinter(string n, out IntPtr h, IntPtr d);
+    [DllImport("winspool.drv", SetLastError=true)]
+    public static extern bool ClosePrinter(IntPtr h);
+    [DllImport("winspool.drv", SetLastError=true, CharSet=CharSet.Ansi)]
+    public static extern bool StartDocPrinter(IntPtr h, int l, ref DOCINFOA di);
+    [DllImport("winspool.drv", SetLastError=true)]
+    public static extern bool EndDocPrinter(IntPtr h);
+    [DllImport("winspool.drv", SetLastError=true)]
+    public static extern bool StartPagePrinter(IntPtr h);
+    [DllImport("winspool.drv", SetLastError=true)]
+    public static extern bool EndPagePrinter(IntPtr h);
+    [DllImport("winspool.drv", SetLastError=true)]
+    public static extern bool WritePrinter(IntPtr h, byte[] p, int c, out int w);
+    public static bool SendRawData(string name, byte[] data) {
+        IntPtr h;
+        if (!OpenPrinter(name, out h, IntPtr.Zero)) return false;
+        DOCINFOA di = new DOCINFOA();
+        di.pDocName = "ZebraBridge ZPL Label";
+        di.pDataType = "RAW";
+        if (!StartDocPrinter(h, 1, ref di)) { ClosePrinter(h); return false; }
+        StartPagePrinter(h);
+        int w;
+        bool ok = WritePrinter(h, data, data.Length, out w);
+        EndPagePrinter(h);
+        EndDocPrinter(h);
+        ClosePrinter(h);
+        return ok;
+    }
+}
+"@
+try {
+    $$b = [System.IO.File]::ReadAllBytes($$FilePath)
+    $$r = [RawPrint]::SendRawData($$PrinterName, $$b)
+    Remove-Item $$FilePath -Force -ErrorAction SilentlyContinue
+    if ($$r) { Write-Output "OK" } else { Write-Output "FAIL" }
+} catch {
+    Remove-Item $$FilePath -Force -ErrorAction SilentlyContinue
+    Write-Output "ERROR:$$_"
+}`;
+    // PowerShell uses $ for variables, replace $$ with $ for the actual script
+    fs.writeFileSync(tmpPs1, ps1Content.replace(/\$\$/g, '$'), "utf-8");
 
+    const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File "${tmpPs1}" -PrinterName "${printerName}" -FilePath "${tmpZpl}"`;
     exec(cmd, { timeout: 15000 }, (err, stdout, stderr) => {
-      try { fs.unlinkSync(tmpFile); } catch {}
-      if (err) {
-        // Fallback: use Out-Printer
-        const cmd2 = `powershell -NoProfile -Command "Get-Content '${tmpFile}' -Raw | Out-Printer -Name '${safeName}'"`;
-        fs.writeFileSync(tmpFile, zpl, "utf-8");
-        exec(cmd2, { timeout: 15000 }, (err2) => {
-          try { fs.unlinkSync(tmpFile); } catch {}
-          if (err2) reject(err2);
-          else resolve();
-        });
+      try { fs.unlinkSync(tmpPs1); } catch {}
+      try { fs.unlinkSync(tmpZpl); } catch {}
+      const output = (stdout || "").trim();
+      if (err || output.startsWith("FAIL") || output.startsWith("ERROR")) {
+        reject(new Error(stderr || output || "Print failed"));
       } else {
         resolve();
       }
@@ -289,4 +338,3 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log("📋 Polling cola de impresión cada 5 segundos...");
   setInterval(() => pollPrintQueue(bridgeId), 5000);
 });
-
