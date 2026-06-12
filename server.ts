@@ -188,6 +188,18 @@ async function initDb() {
     )`);
   } catch {}
 
+  // Table: system_logs (diagnostic console)
+  try {
+    await db.execute(`CREATE TABLE IF NOT EXISTS system_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+      level TEXT NOT NULL DEFAULT 'info',
+      source TEXT NOT NULL DEFAULT 'server',
+      message TEXT NOT NULL,
+      details TEXT
+    )`);
+  } catch {}
+
   // Seed label formats only if empty (preserves cloud data)
   try {
     const formatsResult = await db.execute(
@@ -212,8 +224,45 @@ async function initDb() {
   console.log(`📦 ${productCount.rows[0].count} productos en la base de datos Turso.`);
 }
 
-initDb().catch((err) => {
+// ── Logging helper ───────────────────────────────────────────────────────────
+async function addLog(level: 'info' | 'warn' | 'error' | 'success', source: string, message: string, details?: string) {
+  try {
+    await db.execute({
+      sql: "INSERT INTO system_logs (level, source, message, details) VALUES (?, ?, ?, ?)",
+      args: [level, source, message, details || null],
+    });
+    // Auto-cleanup: keep only last 24h
+    await db.execute("DELETE FROM system_logs WHERE timestamp < datetime('now', '-1 day')");
+  } catch {}
+}
+
+initDb().then(() => {
+  addLog('info', 'server', 'Servidor iniciado', `Platform: ${os.platform()}, Node: ${process.version}`);
+}).catch((err) => {
   console.error("Failed to initialize database:", err);
+});
+
+// API: Logs
+app.get("/api/logs", async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 100;
+    const result = await db.execute({
+      sql: "SELECT * FROM system_logs ORDER BY id DESC LIMIT ?",
+      args: [limit],
+    });
+    res.json(result.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/logs", async (_req, res) => {
+  try {
+    await db.execute("DELETE FROM system_logs");
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // API Routes
@@ -389,6 +438,7 @@ app.post("/api/print-queue", async (req, res) => {
       args: [bridgeId, zpl, printerName],
     });
     res.json({ message: "Print job queued" });
+    addLog('info', 'print-queue', `Job encolado para \"${printerName}\"`, `Bridge: ${bridgeId}`);
   } catch (error) {
     console.error("Queue error:", error);
     res.status(500).json({ error: "Failed to queue print job" });
@@ -806,12 +856,14 @@ app.post('/api/print/usb', async (req, res) => {
 
     if (err) {
       console.error('USB print error:', err.message, stderr);
+      addLog('error', 'print-usb', `Error imprimiendo en "${printerName}"`, stderr || err.message);
       return res.status(500).json({ error: `Error de impresión: ${stderr || err.message}` });
     }
 
     const output = stdout.trim();
     if (output === 'OK') {
       console.log(`🖨️ ZPL enviado a "${printerName}"`);
+      addLog('success', 'print-usb', `Impreso en "${printerName}"`, `Directo USB/Local`);
       res.json({ success: true, message: `Etiqueta enviada a ${printerName}` });
     } else {
       console.error('Print result:', output);
@@ -1011,6 +1063,7 @@ function startBridgeServices() {
                hostname, localIp, PORT, JSON.stringify(printers)]
       });
       console.log(`☁️  Registrado en Cloud: ${hostname} (${localIp}) — ${printers.length} impresoras`);
+      addLog('info', 'bridge', `Bridge registrado: ${hostname}`, `IP: ${localIp}, ${printers.length} impresoras`);
     } catch (err: any) {
       console.log(`⚠️  Error registrando bridge: ${err.message}`);
     }
@@ -1053,12 +1106,14 @@ function startBridgeServices() {
           });
 
           console.log(`🖨️  Cola: Impreso en "${printerName}" (job ${job.id})`);
+          addLog('success', 'print-queue', `Cola: Impreso en "${printerName}"`, `Job ID: ${job.id}`);
           await db.execute({
             sql: "UPDATE print_queue SET status = 'completed', completedAt = datetime('now') WHERE id = ?",
             args: [job.id as number],
           });
         } catch (err: any) {
           console.error(`❌ Cola: Error job ${job.id}: ${err.message}`);
+          addLog('error', 'print-queue', `Cola: Error en "${printerName}"`, `Job ${job.id}: ${err.message}`);
           await db.execute({
             sql: "UPDATE print_queue SET status = 'error', completedAt = datetime('now') WHERE id = ?",
             args: [job.id as number],

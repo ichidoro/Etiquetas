@@ -20,6 +20,7 @@ import {
   Monitor,
   Globe,
   Copy,
+  Terminal,
 } from "lucide-react";
 import { Product, LabelFormat } from "./types";
 import { ProductForm } from "./components/ProductForm";
@@ -27,6 +28,7 @@ import { PrintModal } from "./components/PrintModal";
 import { TracePrintModal } from "./components/TracePrintModal";
 import { LabelPreview } from "./components/LabelPreview";
 import { EmpleadosManager } from "./components/EmpleadosManager";
+import { SystemConsole } from "./components/SystemConsole";
 import { PrinterManager } from "./components/PrinterManager";
 import { FreeLabelCreator } from "./components/FreeLabelCreator";
 
@@ -48,7 +50,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState<
     "maestro" | "formatos" | "historial" | "configuracion" | "disenador"
   >("maestro");
-  const [configTab, setConfigTab] = useState<"turso" | "operadores" | "impresoras" | "instalacion">("operadores");
+  const [configTab, setConfigTab] = useState<"turso" | "operadores" | "impresoras" | "instalacion" | "consola">("operadores");
   const [dbStatus, setDbStatus] = useState<{ dbType: string; dbUrl: string }>({
     dbType: "local-sqlite",
     dbUrl: "file:local.db",
@@ -1375,7 +1377,18 @@ export default function App() {
                     }`}
                   >
                     <Monitor className="w-4 h-4" />
-                    <span>Instalación en otro PC</span>
+                    <span>Instalacion PC</span>
+                  </button>
+                  <button
+                    onClick={() => setConfigTab("consola")}
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors border-b-2 cursor-pointer ${
+                      configTab === "consola"
+                        ? "border-blue-500 text-blue-600"
+                        : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                    }`}
+                  >
+                    <Terminal className="w-4 h-4" />
+                    <span>Consola</span>
                   </button>
                 </div>
 
@@ -1658,6 +1671,11 @@ timeout /t 15
                       </ul>
                     </div>
                   </div>
+                )}
+
+                {/* Consola / Logs tab */}
+                {configTab === "consola" && (
+                  <SystemConsole />
                 )}
               </div>
             )}
