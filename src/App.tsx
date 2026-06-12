@@ -1543,11 +1543,14 @@ set "ZEBRA_DIR=%USERPROFILE%\ZebraBridge"
 if not exist "%ZEBRA_DIR%" mkdir "%ZEBRA_DIR%"
 echo [OK] Carpeta: %ZEBRA_DIR%
 
-:: ── 3. Detener instancias anteriores ──────────────────
-echo [..] Limpiando procesos anteriores...
-taskkill /IM "node.exe" /F >nul 2>&1
+:: ── 3. Detener bridge anterior (solo puerto 3000) ─────
+echo [..] Deteniendo bridge anterior...
+for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":3000 " ^| findstr "LISTENING"') do (
+    taskkill /PID %%a /F >nul 2>&1
+)
+schtasks /end /tn "ZebraBridge" >nul 2>&1
 timeout /t 2 /nobreak >nul
-echo [OK] Procesos anteriores detenidos
+echo [OK] Bridge anterior detenido
 
 :: ── 4. Descargar servidor de impresion desde la nube ──
 echo [..] Descargando servidor de impresion...
@@ -1560,52 +1563,58 @@ if not exist "%ZEBRA_DIR%\print-bridge.mjs" (
     exit /b 1
 )
 
-:: ── 5. Crear lanzador silencioso (VBS) ────────────────
-echo [..] Configurando modo invisible...
-> "%ZEBRA_DIR%\launch-silent.vbs" (
-echo Set WshShell = CreateObject^("WScript.Shell"^)
-echo WshShell.CurrentDirectory = "%ZEBRA_DIR%"
-echo WshShell.Run "node ""%ZEBRA_DIR%\print-bridge.mjs""", 0, False
-)
-echo [OK] Modo invisible configurado
+:: ── 5. Obtener ruta completa de node.exe ──────────────
+for /f "tokens=*" %%n in ('where node') do set "NODE_PATH=%%n"
+echo [OK] Node: %NODE_PATH%
 
-:: ── 6. Inicio automatico con Windows ──────────────────
-echo [..] Configurando inicio automatico...
-set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
-copy /Y "%ZEBRA_DIR%\launch-silent.vbs" "%STARTUP%\ZebraBridge.vbs" >nul 2>&1
-if exist "%STARTUP%\ZebraBridge.vbs" (
+:: ── 6. Crear tarea programada (segundo plano + auto inicio) ──
+echo [..] Configurando servicio en segundo plano...
+schtasks /delete /tn "ZebraBridge" /f >nul 2>&1
+schtasks /create /tn "ZebraBridge" /tr "\"%NODE_PATH%\" \"%ZEBRA_DIR%\print-bridge.mjs\"" /sc onlogon /rl highest /f >nul 2>&1
+if %errorlevel% equ 0 (
     echo [OK] Inicio automatico configurado
 ) else (
-    echo [AVISO] No se pudo configurar inicio automatico
+    echo [AVISO] No se pudo crear tarea programada, usando metodo alternativo...
+    set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
+    > "%ZEBRA_DIR%\launch-silent.vbs" (
+        echo Set WshShell = CreateObject^("WScript.Shell"^)
+        echo WshShell.CurrentDirectory = "%ZEBRA_DIR%"
+        echo WshShell.Run "cmd /c node print-bridge.mjs", 0, False
+    )
+    copy /Y "%ZEBRA_DIR%\launch-silent.vbs" "%STARTUP%\ZebraBridge.vbs" >nul 2>&1
+    echo [OK] Inicio automatico configurado (metodo alternativo)
 )
 
-:: ── 7. Abrir firewall para WiFi ──────────────────────
-echo [..] Abriendo firewall para impresion WiFi...
+:: ── 7. Abrir firewall ────────────────────────────────
+echo [..] Configurando firewall...
 netsh advfirewall firewall delete rule name="ZebraBridge" >nul 2>&1
 netsh advfirewall firewall add rule name="ZebraBridge" dir=in action=allow protocol=TCP localport=3000 >nul 2>&1
 echo [OK] Firewall configurado
 
-:: ── 8. Iniciar en segundo plano ───────────────────────
-echo [..] Iniciando servidor en segundo plano...
-start "" wscript.exe "%ZEBRA_DIR%\launch-silent.vbs"
-echo [..] Esperando que inicie (5 segundos)...
-timeout /t 5 /nobreak >nul
+:: ── 8. Iniciar ahora ─────────────────────────────────
+echo [..] Iniciando servidor...
+schtasks /run /tn "ZebraBridge" >nul 2>&1
+if %errorlevel% neq 0 (
+    powershell -NoProfile -Command "Start-Process -FilePath '%NODE_PATH%' -ArgumentList '%ZEBRA_DIR%\print-bridge.mjs' -WorkingDirectory '%ZEBRA_DIR%' -WindowStyle Hidden"
+)
+echo [..] Esperando inicio (8 segundos)...
+timeout /t 8 /nobreak >nul
 
-:: ── 9. Verificar ──────────────────────────────────────
-powershell -NoProfile -Command "try { $r = Invoke-WebRequest -Uri 'http://localhost:3000/health' -UseBasicParsing -TimeoutSec 5; Write-Host '[OK] Servidor ACTIVO en puerto 3000' } catch { Start-Sleep 3; try { $r = Invoke-WebRequest -Uri 'http://localhost:3000/health' -UseBasicParsing -TimeoutSec 5; Write-Host '[OK] Servidor ACTIVO en puerto 3000' } catch { Write-Host '[ERROR] El servidor no responde - intenta ejecutar de nuevo' } }"
+:: ── 9. Verificar ─────────────────────────────────────
+powershell -NoProfile -Command "$ok=$false; for($i=0;$i -lt 3;$i++){ try{ $r=Invoke-WebRequest -Uri 'http://localhost:3000/health' -UseBasicParsing -TimeoutSec 5; Write-Host '[OK] Servidor ACTIVO en puerto 3000'; $ok=$true; break }catch{ Start-Sleep 2 } } if(-not $ok){ Write-Host '[ERROR] El servidor no responde. Reintenta ejecutar este archivo.' }"
 
 echo.
 echo ====================================================
 echo   INSTALACION COMPLETA
 echo.
-echo   El servidor corre en SEGUNDO PLANO (invisible).
-echo   Se iniciara AUTOMATICAMENTE al encender el PC.
+echo   El servidor corre en SEGUNDO PLANO.
+echo   Se inicia AUTOMATICAMENTE al encender el PC.
 echo   No necesitas abrir ninguna ventana.
 echo.
 echo   Abre en tu navegador:
 echo   https://zebra-bridge-pro-684852789183.us-central1.run.app
 echo.
-echo   Si necesitas reinstalar, ejecuta este BAT de nuevo.
+echo   Para reinstalar, ejecuta este BAT de nuevo.
 echo ====================================================
 timeout /t 15
 `;

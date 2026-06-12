@@ -1035,14 +1035,19 @@ function startBridgeServices() {
           const tempFile = path.join(os.tmpdir(), `zpl_queue_${Date.now()}.txt`);
           fs.writeFileSync(tempFile, zpl, 'utf-8');
 
+          const scriptPath = path.join(process.cwd(), 'scripts', 'raw-print.ps1');
           const safeName = printerName.replace(/"/g, '`"');
           await new Promise<void>((resolve, reject) => {
-            exec(`powershell -NoProfile -Command "Copy-Item -Path '${tempFile}' -Destination '\\\\localhost\\${safeName}' -Force"`,
+            exec(`powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -PrinterName "${safeName}" -FilePath "${tempFile}"`,
               { timeout: 15000 },
-              (err) => {
-                try { fs.unlinkSync(tempFile); } catch {}
-                if (err) reject(err);
-                else resolve();
+              (err, stdout) => {
+                const output = (stdout || '').trim();
+                if (err || output.startsWith('FAIL') || output.startsWith('ERROR')) {
+                  try { fs.unlinkSync(tempFile); } catch {}
+                  reject(new Error(output || err?.message || 'Print failed'));
+                } else {
+                  resolve();
+                }
               }
             );
           });
