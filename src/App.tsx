@@ -1579,36 +1579,36 @@ REM -- 5. Obtener ruta de node.exe
 for /f "tokens=*" %%n in ('where node') do set "NODE_PATH=%%n"
 echo [OK] Node: %NODE_PATH%
 
-REM -- 6. Crear tarea programada (segundo plano + auto inicio)
-echo [..] Configurando servicio en segundo plano...
+REM -- 6. Crear lanzador invisible (VBS)
+echo [..] Configurando inicio invisible...
+> "%ZEBRA_DIR%\launch-silent.vbs" (
+    echo Set WshShell = CreateObject^("WScript.Shell"^)
+    echo WshShell.CurrentDirectory = "%ZEBRA_DIR%"
+    echo WshShell.Run "cmd /c ""%NODE_PATH%"" print-bridge.mjs", 0, False
+)
+echo [OK] Lanzador invisible creado
+
+REM -- 7. Configurar inicio automatico al encender PC
+echo [..] Configurando inicio automatico...
 schtasks /delete /tn "ZebraBridge" /f >nul 2>&1
-schtasks /create /tn "ZebraBridge" /tr "\"%NODE_PATH%\" \"%ZEBRA_DIR%\print-bridge.mjs\"" /sc onlogon /rl highest /f >nul 2>&1
+schtasks /create /tn "ZebraBridge" /tr "wscript \"%ZEBRA_DIR%\launch-silent.vbs\"" /sc onlogon /rl highest /f >nul 2>&1
 if %errorlevel% equ 0 (
     echo [OK] Tarea programada creada
 ) else (
-    echo [AVISO] Usando metodo alternativo...
     set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
-    > "%ZEBRA_DIR%\launch-silent.vbs" (
-        echo Set WshShell = CreateObject^("WScript.Shell"^)
-        echo WshShell.CurrentDirectory = "%ZEBRA_DIR%"
-        echo WshShell.Run "cmd /c node print-bridge.mjs", 0, False
-    )
     copy /Y "%ZEBRA_DIR%\launch-silent.vbs" "%STARTUP%\ZebraBridge.vbs" >nul 2>&1
-    echo [OK] Inicio automatico configurado
+    echo [OK] Inicio automatico via carpeta Startup
 )
 
-REM -- 7. Abrir firewall
+REM -- 8. Abrir firewall
 echo [..] Configurando firewall...
 netsh advfirewall firewall delete rule name="ZebraBridge" >nul 2>&1
 netsh advfirewall firewall add rule name="ZebraBridge" dir=in action=allow protocol=TCP localport=3000 >nul 2>&1
 echo [OK] Firewall configurado
 
-REM -- 8. Iniciar ahora
-echo [..] Iniciando servidor...
-schtasks /run /tn "ZebraBridge" >nul 2>&1
-if %errorlevel% neq 0 (
-    powershell -NoProfile -Command "Start-Process -FilePath '%NODE_PATH%' -ArgumentList '%ZEBRA_DIR%\print-bridge.mjs' -WorkingDirectory '%ZEBRA_DIR%' -WindowStyle Hidden"
-)
+REM -- 9. Iniciar ahora (invisible, sin ventana)
+echo [..] Iniciando servidor en segundo plano...
+wscript "%ZEBRA_DIR%\launch-silent.vbs"
 echo [..] Esperando inicio (8 segundos)...
 timeout /t 8 /nobreak >nul
 
