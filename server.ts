@@ -409,9 +409,9 @@ app.post("/api/bridges/register", async (req, res) => {
 
 app.get("/api/bridges", async (req, res) => {
   try {
-    // Only return bridges seen in the last 5 minutes
+    // Only return bridges seen in the last 2 minutes
     const result = await db.execute(
-      "SELECT * FROM print_bridges WHERE lastSeen > datetime('now', '-5 minutes')"
+      "SELECT * FROM print_bridges WHERE lastSeen > datetime('now', '-2 minutes')"
     );
     const bridges = result.rows.map((row) => ({
       ...row,
@@ -1128,7 +1128,7 @@ function startBridgeServices() {
 
   // Start services
   registerBridge();
-  setInterval(registerBridge, 2 * 60 * 1000); // Every 2 minutes
+  setInterval(registerBridge, 30 * 1000); // Every 30 seconds
 
   console.log("📋 Polling cola de impresión cada 5 segundos...");
   setInterval(pollQueue, 5000); // Every 5 seconds

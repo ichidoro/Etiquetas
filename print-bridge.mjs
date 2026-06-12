@@ -327,12 +327,12 @@ server.listen(PORT, "0.0.0.0", () => {
   printers.forEach((p) => console.log(`  ✅ ${p.Name}`));
   console.log("");
 
-  // Register immediately and then every 2 minutes
+  // Register immediately and then every 30 seconds
   registerWithCloud(localIp, printers);
   setInterval(() => {
     const currentPrinters = getSystemPrinters();
     registerWithCloud(localIp, currentPrinters);
-  }, 2 * 60 * 1000);
+  }, 30 * 1000);
 
   // Poll print queue every 5 seconds
   console.log("📋 Polling cola de impresión cada 5 segundos...");

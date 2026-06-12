@@ -80,8 +80,8 @@ export function PrinterManager({ onShowToast }: PrinterManagerProps) {
   );
 
   // ---- Fetch printers -------------------------------------------------------
-  const fetchPrinters = useCallback(async () => {
-    setLoading(true);
+  const fetchPrinters = useCallback(async (silent?: boolean) => {
+    if (!silent) setLoading(true);
     setError("");
     try {
       let discoveredUrl: string | null = null;
@@ -125,6 +125,11 @@ export function PrinterManager({ onShowToast }: PrinterManagerProps) {
 
   useEffect(() => {
     fetchPrinters();
+    // Auto-poll every 30 seconds to detect cable changes
+    const interval = setInterval(() => {
+      fetchPrinters();
+    }, 30000);
+    return () => clearInterval(interval);
   }, [fetchPrinters]);
 
   // ---- Set default ----------------------------------------------------------
