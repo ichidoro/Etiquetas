@@ -190,10 +190,76 @@ const server = http.createServer(async (req, res) => {
   res.end("Not found");
 });
 
+// ── Poll Cloud print queue for pending jobs ──────────────────────────────────
+function getBridgeId(localIp) {
+  const hostname = os.hostname();
+  return `bridge-${hostname}-${localIp}`.replace(/[^a-zA-Z0-9\-\.]/g, '_');
+}
+
+function pollPrintQueue(bridgeId) {
+  const url = new URL(`${CLOUD_URL}/api/print-queue/pending/${bridgeId}`);
+  const options = {
+    hostname: url.hostname,
+    port: 443,
+    path: url.pathname,
+    method: "GET",
+    timeout: 10000,
+  };
+
+  const req = https.request(options, (res) => {
+    let body = "";
+    res.on("data", (c) => body += c);
+    res.on("end", async () => {
+      try {
+        const jobs = JSON.parse(body);
+        if (!Array.isArray(jobs) || jobs.length === 0) return;
+        
+        console.log(`📋 ${jobs.length} trabajo(s) en cola`);
+        
+        for (const job of jobs) {
+          try {
+            await printZpl(job.zpl, job.printerName);
+            console.log(`🖨️  Cola: Impreso en "${job.printerName}" (job ${job.id})`);
+            markJobComplete(job.id, "completed");
+          } catch (err) {
+            console.error(`❌ Cola: Error imprimiendo job ${job.id}:`, err.message);
+            markJobComplete(job.id, "error");
+          }
+        }
+      } catch {}
+    });
+  });
+
+  req.on("error", () => {}); // Silently ignore network errors
+  req.end();
+}
+
+function markJobComplete(jobId, status) {
+  const url = new URL(`${CLOUD_URL}/api/print-queue/${jobId}`);
+  const data = JSON.stringify({ status });
+  const options = {
+    hostname: url.hostname,
+    port: 443,
+    path: url.pathname,
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(data),
+    },
+    timeout: 10000,
+  };
+
+  const req = https.request(options, () => {});
+  req.on("error", () => {});
+  req.write(data);
+  req.end();
+}
+
 // Listen on all interfaces (0.0.0.0) so other PCs on the LAN can reach us
 server.listen(PORT, "0.0.0.0", () => {
   const printers = getSystemPrinters();
   const localIp = getLocalIp();
+  const bridgeId = getBridgeId(localIp);
 
   console.log("");
   console.log("╔══════════════════════════════════════════════════╗");
@@ -202,8 +268,9 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log(`║  Local:      http://localhost:${PORT}              ║`);
   console.log(`║  Red WiFi:   http://${localIp.padEnd(15)}:${PORT}    ║`);
   console.log(`║  Impresoras: ${String(printers.length).padEnd(2)} detectadas                    ║`);
+  console.log(`║  Bridge ID:  ${bridgeId.substring(0, 35).padEnd(35)} ║`);
   console.log("╠══════════════════════════════════════════════════╣");
-  console.log("║  ✅ Accesible desde otros PCs en la misma WiFi   ║");
+  console.log("║  ✅ Accesible desde la nube via cola de impresión║");
   console.log("╚══════════════════════════════════════════════════╝");
   console.log("");
   printers.forEach((p) => console.log(`  ✅ ${p.Name}`));
@@ -214,5 +281,10 @@ server.listen(PORT, "0.0.0.0", () => {
   setInterval(() => {
     const currentPrinters = getSystemPrinters();
     registerWithCloud(localIp, currentPrinters);
-  }, 2 * 60 * 1000); // Every 2 minutes
+  }, 2 * 60 * 1000);
+
+  // Poll print queue every 5 seconds
+  console.log("📋 Polling cola de impresión cada 5 segundos...");
+  setInterval(() => pollPrintQueue(bridgeId), 5000);
 });
+

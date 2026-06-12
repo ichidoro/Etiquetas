@@ -175,6 +175,19 @@ async function initDb() {
     )`);
   } catch {}
 
+  // Table: print_queue (relay print jobs from cloud to bridge)
+  try {
+    await db.execute(`CREATE TABLE IF NOT EXISTS print_queue (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      bridgeId TEXT NOT NULL,
+      zpl TEXT NOT NULL,
+      printerName TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+      completedAt TEXT
+    )`);
+  } catch {}
+
   // Seed label formats only if empty (preserves cloud data)
   try {
     const formatsResult = await db.execute(
@@ -359,6 +372,59 @@ app.get("/api/bridges", async (req, res) => {
   } catch (error) {
     console.error("Bridge list error:", error);
     res.status(500).json({ error: "Failed to list bridges" });
+  }
+});
+
+// ── Print Queue API (relay for LAN printing via Cloud) ──────────────────
+
+// Client submits a print job to the queue
+app.post("/api/print-queue", async (req, res) => {
+  try {
+    const { bridgeId, zpl, printerName } = req.body;
+    if (!bridgeId || !zpl || !printerName) {
+      return res.status(400).json({ error: "Missing bridgeId, zpl, or printerName" });
+    }
+    await db.execute({
+      sql: "INSERT INTO print_queue (bridgeId, zpl, printerName) VALUES (?, ?, ?)",
+      args: [bridgeId, zpl, printerName],
+    });
+    res.json({ message: "Print job queued" });
+  } catch (error) {
+    console.error("Queue error:", error);
+    res.status(500).json({ error: "Failed to queue print job" });
+  }
+});
+
+// Bridge polls for pending jobs
+app.get("/api/print-queue/pending/:bridgeId", async (req, res) => {
+  try {
+    const { bridgeId } = req.params;
+    const result = await db.execute({
+      sql: "SELECT * FROM print_queue WHERE bridgeId = ? AND status = 'pending' ORDER BY createdAt ASC LIMIT 5",
+      args: [bridgeId],
+    });
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Queue poll error:", error);
+    res.status(500).json({ error: "Failed to poll queue" });
+  }
+});
+
+// Bridge marks a job as completed
+app.patch("/api/print-queue/:jobId", async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { status } = req.body;
+    await db.execute({
+      sql: "UPDATE print_queue SET status = ?, completedAt = datetime('now') WHERE id = ?",
+      args: [status || 'completed', parseInt(jobId)],
+    });
+    // Clean up old completed jobs (older than 1 hour)
+    await db.execute("DELETE FROM print_queue WHERE status != 'pending' AND createdAt < datetime('now', '-1 hour')");
+    res.json({ message: "Job updated" });
+  } catch (error) {
+    console.error("Queue update error:", error);
+    res.status(500).json({ error: "Failed to update job" });
   }
 });
 
