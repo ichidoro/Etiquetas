@@ -953,7 +953,122 @@ async function startServer() {
     console.log(`\n🚀 ZebraBridge Pro running on http://localhost:${PORT}`);
     console.log(`   DB: Turso Cloud`);
     console.log(`   Printing: USB (Windows Spooler) + TCP/IP (Port 9100)\n`);
+
+    // Auto-register as bridge + poll print queue (only on Windows / non-Cloud)
+    if (os.platform() === 'win32') {
+      startBridgeServices();
+    }
   });
 }
 
+// ── Bridge auto-registration & queue polling (for dev/local server) ──────────
+function getLocalIp(): string {
+  const nets = os.networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const iface of nets[name]!) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return '127.0.0.1';
+}
+
+function startBridgeServices() {
+  const localIp = getLocalIp();
+  const hostname = os.hostname();
+  const bridgeId = `bridge-${hostname}-${localIp}`.replace(/[^a-zA-Z0-9\-\.]/g, '_');
+
+  console.log(`\n☁️  Bridge ID: ${bridgeId}`);
+  console.log(`   Local IP: ${localIp}`);
+
+  // Register with cloud DB
+  async function registerBridge() {
+    try {
+      const printers = await new Promise<any[]>((resolve) => {
+        exec('powershell -NoProfile -Command "Get-Printer | Select-Object Name, DriverName | ConvertTo-Json -Compress"',
+          { timeout: 5000 },
+          (err, stdout) => {
+            if (err) { resolve([]); return; }
+            try {
+              const parsed = JSON.parse(stdout.trim());
+              resolve(Array.isArray(parsed) ? parsed : [parsed]);
+            } catch { resolve([]); }
+          }
+        );
+      });
+
+      await db.execute({
+        sql: `INSERT INTO print_bridges (id, hostname, localIp, port, printers, lastSeen)
+              VALUES (?, ?, ?, ?, ?, datetime('now'))
+              ON CONFLICT(id) DO UPDATE SET
+              hostname = ?, localIp = ?, port = ?, printers = ?, lastSeen = datetime('now')`,
+        args: [bridgeId, hostname, localIp, PORT, JSON.stringify(printers),
+               hostname, localIp, PORT, JSON.stringify(printers)]
+      });
+      console.log(`☁️  Registrado en Cloud: ${hostname} (${localIp}) — ${printers.length} impresoras`);
+    } catch (err: any) {
+      console.log(`⚠️  Error registrando bridge: ${err.message}`);
+    }
+  }
+
+  // Poll print queue for pending jobs
+  async function pollQueue() {
+    try {
+      const result = await db.execute({
+        sql: "SELECT * FROM print_queue WHERE bridgeId = ? AND status = 'pending' ORDER BY createdAt ASC LIMIT 5",
+        args: [bridgeId],
+      });
+
+      if (result.rows.length === 0) return;
+
+      console.log(`📋 ${result.rows.length} trabajo(s) en cola`);
+
+      for (const job of result.rows) {
+        try {
+          const zpl = job.zpl as string;
+          const printerName = job.printerName as string;
+          const tempFile = path.join(os.tmpdir(), `zpl_queue_${Date.now()}.txt`);
+          fs.writeFileSync(tempFile, zpl, 'utf-8');
+
+          const safeName = printerName.replace(/"/g, '`"');
+          await new Promise<void>((resolve, reject) => {
+            exec(`powershell -NoProfile -Command "Copy-Item -Path '${tempFile}' -Destination '\\\\localhost\\${safeName}' -Force"`,
+              { timeout: 15000 },
+              (err) => {
+                try { fs.unlinkSync(tempFile); } catch {}
+                if (err) reject(err);
+                else resolve();
+              }
+            );
+          });
+
+          console.log(`🖨️  Cola: Impreso en "${printerName}" (job ${job.id})`);
+          await db.execute({
+            sql: "UPDATE print_queue SET status = 'completed', completedAt = datetime('now') WHERE id = ?",
+            args: [job.id as number],
+          });
+        } catch (err: any) {
+          console.error(`❌ Cola: Error job ${job.id}: ${err.message}`);
+          await db.execute({
+            sql: "UPDATE print_queue SET status = 'error', completedAt = datetime('now') WHERE id = ?",
+            args: [job.id as number],
+          });
+        }
+      }
+
+      // Cleanup old jobs
+      await db.execute("DELETE FROM print_queue WHERE status != 'pending' AND createdAt < datetime('now', '-1 hour')");
+    } catch {}
+  }
+
+  // Start services
+  registerBridge();
+  setInterval(registerBridge, 2 * 60 * 1000); // Every 2 minutes
+
+  console.log("📋 Polling cola de impresión cada 5 segundos...");
+  setInterval(pollQueue, 5000); // Every 5 seconds
+}
+
 startServer();
+
