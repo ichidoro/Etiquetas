@@ -4,9 +4,9 @@
  * Flow:
  * 1. App opens from Cloud Run
  * 2. Check if localhost:3000 is available (local bridge on same PC)
- * 3. If not → get registered bridges from Cloud DB
- * 4. Use Cloud print queue to send jobs (bridge polls & prints)
- * 5. Fallback to WebUSB only as last resort
+ * 3. If not → get ALL registered bridges from Cloud DB
+ * 4. Merge printers from ALL bridges
+ * 5. Send print job to the bridge that HAS the target printer
  */
 
 const LOCAL_SERVER_URL = "http://localhost:3000";
@@ -57,24 +57,39 @@ export async function discoverBridgeUrl(): Promise<string | null> {
   return "CLOUD_QUEUE";
 }
 
-/** Get the first active bridge from cloud DB */
-async function getActiveBridge(): Promise<{ id: string; printers: { Name: string; DriverName: string }[] } | null> {
+// ── Bridge registry cache ────────────────────────────────────────────────────
+interface BridgeInfo {
+  id: string;
+  hostname: string;
+  localIp: string;
+  printers: { Name: string; DriverName: string }[];
+}
+
+// Map: printerName → bridgeId (for routing print jobs)
+let printerToBridge: Map<string, string> = new Map();
+
+/** Get ALL active bridges from cloud DB */
+async function getAllBridges(): Promise<BridgeInfo[]> {
   try {
     const res = await fetch("/api/bridges");
-    if (!res.ok) return null;
+    if (!res.ok) return [];
     const bridges = await res.json();
-    if (bridges.length === 0) return null;
-    return bridges[0]; // Use first available bridge
+    return bridges;
   } catch {
-    return null;
+    return [];
   }
+}
+
+/** Find which bridge has a specific printer */
+function findBridgeForPrinter(printerName: string): string | null {
+  return printerToBridge.get(printerName) || null;
 }
 
 /** Fetch system printers — auto-discovers bridge or gets from cloud registry */
 export async function fetchPrinters(
   useLocalBridge?: boolean,
   bridgeUrl?: string | null
-): Promise<{ Name: string; PortName: string; DriverName: string }[]> {
+): Promise<{ Name: string; PortName: string; DriverName: string; _bridgeId?: string; _bridgeHost?: string }[]> {
   
   // Direct local bridge (localhost:3000 on same PC)
   if (bridgeUrl && bridgeUrl !== "CLOUD_QUEUE") {
@@ -91,20 +106,43 @@ export async function fetchPrinters(
     }
   }
 
-  // Cloud queue mode — get printers from bridge registry
+  // Cloud queue mode — get printers from ALL bridges and merge
   if (bridgeUrl === "CLOUD_QUEUE") {
-    const bridge = await getActiveBridge();
-    if (bridge && bridge.printers) {
-      console.log(`[PrintBridge] Got ${bridge.printers.length} printers from cloud registry`);
-      // The bridge registry stores printers as {Name, DriverName}, add dummy PortName
-      return bridge.printers.map((p: any) => ({
-        Name: p.Name,
-        PortName: "",
-        DriverName: p.DriverName || "",
-      }));
+    const bridges = await getAllBridges();
+    if (bridges.length === 0) {
+      console.log("[PrintBridge] No bridges registered in cloud");
+      return [];
     }
-    console.log("[PrintBridge] No bridges registered in cloud");
-    return [];
+
+    // Clear and rebuild printer→bridge mapping
+    printerToBridge = new Map();
+    const allPrinters: { Name: string; PortName: string; DriverName: string; _bridgeId?: string; _bridgeHost?: string }[] = [];
+    const seen = new Set<string>();
+
+    for (const bridge of bridges) {
+      if (!bridge.printers || bridge.printers.length === 0) continue;
+      console.log(`[PrintBridge] Bridge "${bridge.hostname}" (${bridge.localIp}) → ${bridge.printers.length} impresoras`);
+      
+      for (const p of bridge.printers) {
+        // Register which bridge has this printer
+        printerToBridge.set(p.Name, bridge.id);
+        
+        // Avoid duplicates (same printer name on multiple bridges)
+        if (!seen.has(p.Name)) {
+          seen.add(p.Name);
+          allPrinters.push({
+            Name: p.Name,
+            PortName: `via ${bridge.hostname}`,
+            DriverName: p.DriverName || "",
+            _bridgeId: bridge.id,
+            _bridgeHost: bridge.hostname,
+          });
+        }
+      }
+    }
+
+    console.log(`[PrintBridge] Total: ${allPrinters.length} impresoras de ${bridges.length} bridge(s)`);
+    return allPrinters;
   }
 
   // Same origin (running locally)
@@ -149,20 +187,44 @@ export async function sendPrintJob(
     }
   }
 
-  // Cloud queue mode — send via cloud relay
+  // Cloud queue mode — find the RIGHT bridge for this printer
   if (bridgeUrl === "CLOUD_QUEUE") {
-    console.log(`[PrintBridge] Sending print job via CLOUD QUEUE → ${printerName}`);
-    const bridge = await getActiveBridge();
-    if (!bridge) {
-      return { ok: false, message: "No hay ningún bridge activo. Ejecuta el instalador en el PC con impresoras." };
-    }
+    // Find which bridge has this printer
+    let targetBridgeId = findBridgeForPrinter(printerName);
     
+    // If not in cache, refresh bridges and try again
+    if (!targetBridgeId) {
+      const bridges = await getAllBridges();
+      for (const bridge of bridges) {
+        if (bridge.printers?.some((p: any) => p.Name === printerName)) {
+          targetBridgeId = bridge.id;
+          break;
+        }
+      }
+    }
+
+    // Still not found? Use any bridge with printers
+    if (!targetBridgeId) {
+      const bridges = await getAllBridges();
+      const withPrinters = bridges.find((b: any) => b.printers?.length > 0);
+      if (withPrinters) {
+        targetBridgeId = withPrinters.id;
+        console.log(`[PrintBridge] Printer "${printerName}" not found on any bridge. Using "${withPrinters.hostname}" as fallback.`);
+      }
+    }
+
+    if (!targetBridgeId) {
+      return { ok: false, message: "No hay ningún bridge con impresoras activas. Ejecuta el instalador en el PC con impresoras." };
+    }
+
+    console.log(`[PrintBridge] CLOUD QUEUE → bridge "${targetBridgeId}" → "${printerName}"`);
+
     try {
       const res = await fetch("/api/print-queue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          bridgeId: bridge.id,
+          bridgeId: targetBridgeId,
           zpl,
           printerName,
         }),
