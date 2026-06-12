@@ -775,7 +775,9 @@ app.get('/api/system-printers', (req, res) => {
       }
       try {
         const parsed = JSON.parse(stdout.trim());
-        const printers = Array.isArray(parsed) ? parsed : [parsed];
+        const all = Array.isArray(parsed) ? parsed : [parsed];
+        // Only show Zebra printers (ZDesigner drivers)
+        const printers = all.filter((p: any) => p.DriverName && p.DriverName.includes('ZDesigner'));
         res.json(printers);
       } catch {
         res.json([]);
@@ -992,7 +994,9 @@ function startBridgeServices() {
             if (err) { resolve([]); return; }
             try {
               const parsed = JSON.parse(stdout.trim());
-              resolve(Array.isArray(parsed) ? parsed : [parsed]);
+              const all = Array.isArray(parsed) ? parsed : [parsed];
+              // Only register Zebra printers
+              resolve(all.filter((p: any) => p.DriverName && p.DriverName.includes('ZDesigner')));
             } catch { resolve([]); }
           }
         );

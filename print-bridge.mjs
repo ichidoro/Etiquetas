@@ -53,7 +53,9 @@ function getSystemPrinters() {
       timeout: 10000,
     }).trim();
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [parsed];
+    const all = Array.isArray(parsed) ? parsed : [parsed];
+    // Only show Zebra printers
+    return all.filter(p => p.DriverName && p.DriverName.includes('ZDesigner'));
   } catch (err) {
     console.error("Error listing printers:", err.message);
     return [];
