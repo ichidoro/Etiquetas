@@ -1515,7 +1515,6 @@ export default function App() {
                             <button
                               onClick={() => {
                                 const bat = String.raw`@echo off
-chcp 65001 >nul 2>&1
 title ZebraBridge - Instalando...
 echo.
 echo ====================================================
@@ -1523,7 +1522,7 @@ echo   ZebraBridge Pro - Instalador Automatico
 echo ====================================================
 echo.
 
-:: ── 1. Verificar Node.js ──────────────────────────────
+REM -- 1. Verificar Node.js
 where node >nul 2>&1
 if %errorlevel% neq 0 (
     echo [ERROR] Node.js NO esta instalado.
@@ -1538,12 +1537,12 @@ if %errorlevel% neq 0 (
 )
 for /f "tokens=*" %%v in ('node --version') do echo [OK] Node.js %%v encontrado
 
-:: ── 2. Crear carpeta de trabajo ───────────────────────
+REM -- 2. Crear carpeta de trabajo
 set "ZEBRA_DIR=%USERPROFILE%\ZebraBridge"
 if not exist "%ZEBRA_DIR%" mkdir "%ZEBRA_DIR%"
 echo [OK] Carpeta: %ZEBRA_DIR%
 
-:: ── 3. Detener bridge anterior (solo puerto 3000) ─────
+REM -- 3. Detener bridge anterior (solo puerto 3000)
 echo [..] Deteniendo bridge anterior...
 for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":3000 " ^| findstr "LISTENING"') do (
     taskkill /PID %%a /F >nul 2>&1
@@ -1552,10 +1551,10 @@ schtasks /end /tn "ZebraBridge" >nul 2>&1
 timeout /t 2 /nobreak >nul
 echo [OK] Bridge anterior detenido
 
-:: ── 4. Descargar servidor de impresion desde la nube ──
+REM -- 4. Descargar servidor de impresion desde la nube
 echo [..] Descargando servidor de impresion...
 if exist "%ZEBRA_DIR%\print-bridge.mjs" del "%ZEBRA_DIR%\print-bridge.mjs"
-powershell -NoProfile -Command "try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://zebra-bridge-pro-684852789183.us-central1.run.app/api/download-bridge' -OutFile '%ZEBRA_DIR%\print-bridge.mjs' -UseBasicParsing; Write-Host '[OK] Servidor descargado' } catch { Write-Host '[ERROR] No se pudo descargar: ' + $_.Exception.Message; exit 1 }"
+powershell -NoProfile -Command "try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://zebra-bridge-pro-684852789183.us-central1.run.app/api/download-bridge' -OutFile '%ZEBRA_DIR%\print-bridge.mjs' -UseBasicParsing; Write-Host '[OK] Servidor descargado' } catch { Write-Host '[ERROR] No se pudo descargar'; exit 1 }"
 if not exist "%ZEBRA_DIR%\print-bridge.mjs" (
     echo [ERROR] No se pudo descargar el servidor.
     echo    Verifica tu conexion a internet.
@@ -1563,18 +1562,18 @@ if not exist "%ZEBRA_DIR%\print-bridge.mjs" (
     exit /b 1
 )
 
-:: ── 5. Obtener ruta completa de node.exe ──────────────
+REM -- 5. Obtener ruta de node.exe
 for /f "tokens=*" %%n in ('where node') do set "NODE_PATH=%%n"
 echo [OK] Node: %NODE_PATH%
 
-:: ── 6. Crear tarea programada (segundo plano + auto inicio) ──
+REM -- 6. Crear tarea programada (segundo plano + auto inicio)
 echo [..] Configurando servicio en segundo plano...
 schtasks /delete /tn "ZebraBridge" /f >nul 2>&1
 schtasks /create /tn "ZebraBridge" /tr "\"%NODE_PATH%\" \"%ZEBRA_DIR%\print-bridge.mjs\"" /sc onlogon /rl highest /f >nul 2>&1
 if %errorlevel% equ 0 (
-    echo [OK] Inicio automatico configurado
+    echo [OK] Tarea programada creada
 ) else (
-    echo [AVISO] No se pudo crear tarea programada, usando metodo alternativo...
+    echo [AVISO] Usando metodo alternativo...
     set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
     > "%ZEBRA_DIR%\launch-silent.vbs" (
         echo Set WshShell = CreateObject^("WScript.Shell"^)
@@ -1582,16 +1581,16 @@ if %errorlevel% equ 0 (
         echo WshShell.Run "cmd /c node print-bridge.mjs", 0, False
     )
     copy /Y "%ZEBRA_DIR%\launch-silent.vbs" "%STARTUP%\ZebraBridge.vbs" >nul 2>&1
-    echo [OK] Inicio automatico configurado (metodo alternativo)
+    echo [OK] Inicio automatico configurado
 )
 
-:: ── 7. Abrir firewall ────────────────────────────────
+REM -- 7. Abrir firewall
 echo [..] Configurando firewall...
 netsh advfirewall firewall delete rule name="ZebraBridge" >nul 2>&1
 netsh advfirewall firewall add rule name="ZebraBridge" dir=in action=allow protocol=TCP localport=3000 >nul 2>&1
 echo [OK] Firewall configurado
 
-:: ── 8. Iniciar ahora ─────────────────────────────────
+REM -- 8. Iniciar ahora
 echo [..] Iniciando servidor...
 schtasks /run /tn "ZebraBridge" >nul 2>&1
 if %errorlevel% neq 0 (
@@ -1600,7 +1599,7 @@ if %errorlevel% neq 0 (
 echo [..] Esperando inicio (8 segundos)...
 timeout /t 8 /nobreak >nul
 
-:: ── 9. Verificar ─────────────────────────────────────
+REM -- 9. Verificar
 powershell -NoProfile -Command "$ok=$false; for($i=0;$i -lt 3;$i++){ try{ $r=Invoke-WebRequest -Uri 'http://localhost:3000/health' -UseBasicParsing -TimeoutSec 5; Write-Host '[OK] Servidor ACTIVO en puerto 3000'; $ok=$true; break }catch{ Start-Sleep 2 } } if(-not $ok){ Write-Host '[ERROR] El servidor no responde. Reintenta ejecutar este archivo.' }"
 
 echo.
