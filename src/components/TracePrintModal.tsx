@@ -84,14 +84,15 @@ function generateTraceZpl(
   const labelH = Math.round(format.height * dpmm);
   const gapDots = Math.round(format.horizontalGap * dpmm);
   const marginL = Math.round(format.marginLeft * dpmm);
-  const marginR = Math.round(format.marginRight * dpmm);
-  const usableW = labelW - marginL - marginR;
+  const marginR = Math.round((format.marginRight || 0) * dpmm);
 
   const cols = format.labelsPerRow || 1;
   const rows = format.labelsPerColumn || 1;
   const vGap = Math.round((format.verticalGap || 2) * dpmm);
 
-  const totalPw = Math.max(labelW, labelW * cols + gapDots * Math.max(0, cols - 1) + marginL);
+  // Total print width: left margin + labels + gaps + right margin
+  const gridWidth = labelW * cols + gapDots * Math.max(0, cols - 1);
+  const totalPw = marginL + gridWidth + marginR;
 
   const dateFontH = Math.round(dateFontMm * dpmm);
   const dateFontW = Math.round(dateFontH * 0.6);
@@ -128,16 +129,16 @@ function generateTraceZpl(
       const y3 = rowOffsetY + Math.round(positions.nameY * dpmm);
       const y5 = rowOffsetY + Math.round(positions.traceCodeY * dpmm);
 
-      zpl += `^FO${colOffsetX},${y1}^FB${usableW},1,0,C,0^A0N,${dateFontH},${dateFontW}^FDELAB: ${elabStr}^FS\n`;
-      zpl += `^FO${colOffsetX},${y2}^FB${usableW},1,0,C,0^A0N,${dateFontH},${dateFontW}^FDVENC: ${vencStr}^FS\n`;
-      zpl += `^FO${colOffsetX},${y3}^FB${usableW},1,0,C,0^A0N,${nameFontH},${nameFontW}^FD${productName.substring(0, 40)}^FS\n`;
+      zpl += `^FO${colOffsetX},${y1}^FB${labelW},1,0,C,0^A0N,${dateFontH},${dateFontW}^FDELAB: ${elabStr}^FS\n`;
+      zpl += `^FO${colOffsetX},${y2}^FB${labelW},1,0,C,0^A0N,${dateFontH},${dateFontW}^FDVENC: ${vencStr}^FS\n`;
+      zpl += `^FO${colOffsetX},${y3}^FB${labelW},1,0,C,0^A0N,${nameFontH},${nameFontW}^FD${productName.substring(0, 40)}^FS\n`;
 
       if (hasIsp) {
         const y4 = rowOffsetY + Math.round(positions.ispY * dpmm);
-        zpl += `^FO${colOffsetX},${y4}^FB${usableW},1,0,C,0^A0N,${nameFontH},${nameFontW}^FDISP: ${ispValue!.trim()}^FS\n`;
+        zpl += `^FO${colOffsetX},${y4}^FB${labelW},1,0,C,0^A0N,${nameFontH},${nameFontW}^FDISP: ${ispValue!.trim()}^FS\n`;
       }
 
-      zpl += `^FO${colOffsetX},${y5}^FB${usableW},1,0,C,0^A0N,${traceFontH},${traceFontW}^FD${traceCode}^FS\n`;
+      zpl += `^FO${colOffsetX},${y5}^FB${labelW},1,0,C,0^A0N,${traceFontH},${traceFontW}^FD${traceCode}^FS\n`;
     }
   }
 
