@@ -74,13 +74,13 @@ export function generateZpl(
   const labelHeightDots = Math.round(format.height * dpmm);
   const gapDots = Math.round(format.horizontalGap * dpmm);
   const marginLeftDots = Math.round(format.marginLeft * dpmm);
+  const marginRightDots = Math.round((format.marginRight || 0) * dpmm);
+  const marginTopDots = Math.round((format.marginTop || 0) * dpmm);
 
-  const totalPw = Math.max(
-    labelWidthDots,
-    labelWidthDots * format.labelsPerRow +
-      gapDots * Math.max(0, format.labelsPerRow - 1) +
-      marginLeftDots,
-  );
+  // Total print width: left margin + labels + gaps + right margin
+  const gridWidth = labelWidthDots * format.labelsPerRow +
+    gapDots * Math.max(0, format.labelsPerRow - 1);
+  const totalPw = marginLeftDots + gridWidth + marginRightDots;
   const verticalGapDots = Math.round((format.verticalGap || 2) * dpmm);
   const verticalCount = format.labelsPerColumn || 1;
   const ll = verticalCount * labelHeightDots +
@@ -117,7 +117,7 @@ export function generateZpl(
 
   for (let row = 0; row < verticalCount; row++) {
     for (let col = 0; col < horizontalCount; col++) {
-      // Each label cell starts at marginLeft + col*(labelWidth+gap)
+      // Each label cell: center the grid within PW, then offset by column
       const colOffsetX = marginLeftDots + col * (labelWidthDots + gapDots);
       const rowOffsetY = row * (labelHeightDots + verticalGapDots);
 
