@@ -430,7 +430,7 @@ app.patch("/api/print-queue/:jobId", async (req, res) => {
 
 // Download Bridge file — used by the installer BAT
 app.get("/api/download-bridge", (req, res) => {
-  const bridgePath = path.join(__dirname, "print-bridge.mjs");
+  const bridgePath = path.join(process.cwd(), "print-bridge.mjs");
   if (fs.existsSync(bridgePath)) {
     res.setHeader("Content-Type", "application/javascript");
     res.setHeader("Content-Disposition", "attachment; filename=print-bridge.mjs");

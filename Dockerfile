@@ -25,6 +25,12 @@ RUN npm ci --omit=dev
 # Copy built artifacts from builder
 COPY --from=builder /app/dist ./dist
 
+# Copy bridge file for download endpoint
+COPY --from=builder /app/print-bridge.mjs ./print-bridge.mjs
+
+# Copy scripts for printing
+COPY --from=builder /app/scripts ./scripts
+
 # Cloud Run sets PORT env var
 ENV NODE_ENV=production
 ENV PORT=8080
