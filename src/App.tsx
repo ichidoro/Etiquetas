@@ -1543,8 +1543,15 @@ set "ZEBRA_DIR=%USERPROFILE%\ZebraBridge"
 if not exist "%ZEBRA_DIR%" mkdir "%ZEBRA_DIR%"
 echo [OK] Carpeta: %ZEBRA_DIR%
 
-:: ── 3. Descargar servidor de impresion desde la nube ──
+:: ── 3. Detener instancias anteriores ──────────────────
+echo [..] Limpiando procesos anteriores...
+taskkill /IM "node.exe" /F >nul 2>&1
+timeout /t 2 /nobreak >nul
+echo [OK] Procesos anteriores detenidos
+
+:: ── 4. Descargar servidor de impresion desde la nube ──
 echo [..] Descargando servidor de impresion...
+if exist "%ZEBRA_DIR%\print-bridge.mjs" del "%ZEBRA_DIR%\print-bridge.mjs"
 powershell -NoProfile -Command "try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://zebra-bridge-pro-684852789183.us-central1.run.app/api/download-bridge' -OutFile '%ZEBRA_DIR%\print-bridge.mjs' -UseBasicParsing; Write-Host '[OK] Servidor descargado' } catch { Write-Host '[ERROR] No se pudo descargar: ' + $_.Exception.Message; exit 1 }"
 if not exist "%ZEBRA_DIR%\print-bridge.mjs" (
     echo [ERROR] No se pudo descargar el servidor.
@@ -1553,7 +1560,7 @@ if not exist "%ZEBRA_DIR%\print-bridge.mjs" (
     exit /b 1
 )
 
-:: ── 4. Crear lanzador silencioso (VBS) ────────────────
+:: ── 5. Crear lanzador silencioso (VBS) ────────────────
 echo [..] Configurando modo invisible...
 > "%ZEBRA_DIR%\launch-silent.vbs" (
 echo Set WshShell = CreateObject^("WScript.Shell"^)
@@ -1562,7 +1569,7 @@ echo WshShell.Run "node ""%ZEBRA_DIR%\print-bridge.mjs""", 0, False
 )
 echo [OK] Modo invisible configurado
 
-:: ── 5. Inicio automatico con Windows ──────────────────
+:: ── 6. Inicio automatico con Windows ──────────────────
 echo [..] Configurando inicio automatico...
 set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
 copy /Y "%ZEBRA_DIR%\launch-silent.vbs" "%STARTUP%\ZebraBridge.vbs" >nul 2>&1
@@ -1572,13 +1579,6 @@ if exist "%STARTUP%\ZebraBridge.vbs" (
     echo [AVISO] No se pudo configurar inicio automatico
 )
 
-:: ── 6. Detener instancias anteriores ──────────────────
-echo [..] Limpiando procesos anteriores...
-for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":3000 " ^| findstr "LISTENING"') do (
-    taskkill /PID %%a /F >nul 2>&1
-)
-timeout /t 2 /nobreak >nul
-
 :: ── 7. Abrir firewall para WiFi ──────────────────────
 echo [..] Abriendo firewall para impresion WiFi...
 netsh advfirewall firewall delete rule name="ZebraBridge" >nul 2>&1
@@ -1586,12 +1586,13 @@ netsh advfirewall firewall add rule name="ZebraBridge" dir=in action=allow proto
 echo [OK] Firewall configurado
 
 :: ── 8. Iniciar en segundo plano ───────────────────────
-echo [..] Iniciando servidor...
+echo [..] Iniciando servidor en segundo plano...
 start "" wscript.exe "%ZEBRA_DIR%\launch-silent.vbs"
-timeout /t 3 /nobreak >nul
+echo [..] Esperando que inicie (5 segundos)...
+timeout /t 5 /nobreak >nul
 
 :: ── 9. Verificar ──────────────────────────────────────
-powershell -NoProfile -Command "try { Invoke-WebRequest -Uri 'http://localhost:3000/health' -UseBasicParsing -TimeoutSec 5 | Out-Null; Write-Host '[OK] Servidor ACTIVO en puerto 3000' } catch { Write-Host '[ERROR] El servidor no responde' }"
+powershell -NoProfile -Command "try { $r = Invoke-WebRequest -Uri 'http://localhost:3000/health' -UseBasicParsing -TimeoutSec 5; Write-Host '[OK] Servidor ACTIVO en puerto 3000' } catch { Start-Sleep 3; try { $r = Invoke-WebRequest -Uri 'http://localhost:3000/health' -UseBasicParsing -TimeoutSec 5; Write-Host '[OK] Servidor ACTIVO en puerto 3000' } catch { Write-Host '[ERROR] El servidor no responde - intenta ejecutar de nuevo' } }"
 
 echo.
 echo ====================================================
@@ -1599,11 +1600,12 @@ echo   INSTALACION COMPLETA
 echo.
 echo   El servidor corre en SEGUNDO PLANO (invisible).
 echo   Se iniciara AUTOMATICAMENTE al encender el PC.
+echo   No necesitas abrir ninguna ventana.
 echo.
 echo   Abre en tu navegador:
 echo   https://zebra-bridge-pro-684852789183.us-central1.run.app
 echo.
-echo   Esta ventana se cerrara sola en 15 segundos.
+echo   Si necesitas reinstalar, ejecuta este BAT de nuevo.
 echo ====================================================
 timeout /t 15
 `;
