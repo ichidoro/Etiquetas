@@ -150,7 +150,7 @@ function generateFreeZpl(
   const rows = format.labelsPerColumn || 1;
   const vGap = mmToDots(format.verticalGap || 2, dpi);
 
-  const totalPw = Math.max(labelW, labelW * cols + gapDots * Math.max(0, cols - 1) + marginL);
+  const totalPw = Math.max(labelW, labelW * cols + gapDots * Math.max(0, cols - 1) + marginL + marginR);
 
   const today = formatDDMMYYYY(new Date());
 
@@ -186,10 +186,10 @@ function generateFreeZpl(
         if (el.type === "date") text = today;
         if (el.type === "number") text = String(startNumber).padStart(el.content.length || 4, "0");
 
-        const boldPrefix = el.bold ? "^A0N," : "^A0N,";
+        const boldPrefix = "^A0N,";
 
         if (el.align === "C") {
-          zpl += `^FO${colOffsetX + marginL > colOffsetX ? colOffsetX : colOffsetX},${yDots}^FB${usableW},1,0,C,0${boldPrefix}${fontH},${fontW}^FD${text}^FS\n`;
+          zpl += `^FO${colOffsetX},${yDots}^FB${usableW},1,0,C,0${boldPrefix}${fontH},${fontW}^FD${text}^FS\n`;
         } else if (el.align === "R") {
           zpl += `^FO${colOffsetX},${yDots}^FB${usableW},1,0,R,0${boldPrefix}${fontH},${fontW}^FD${text}^FS\n`;
         } else {

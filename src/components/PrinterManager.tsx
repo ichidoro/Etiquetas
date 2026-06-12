@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Printer, RefreshCw, Star, Check, AlertCircle, Wifi, WifiOff, Usb } from "lucide-react";
-import { isRunningOnCloud, isLocalServerAvailable, fetchPrinters as bridgeFetchPrinters } from "../utils/printBridge";
+import { isRunningOnCloud, discoverBridgeUrl, fetchPrinters as bridgeFetchPrinters } from "../utils/printBridge";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -70,6 +70,7 @@ export function PrinterManager({ onShowToast }: PrinterManagerProps) {
   const [onCloud] = useState(isRunningOnCloud());
   const [bridgeAvailable, setBridgeAvailable] = useState(false);
   const [bridgeChecked, setBridgeChecked] = useState(false);
+  const [bridgeMode, setBridgeMode] = useState<'local' | 'cloud' | 'none'>('none');
 
   const toast = useCallback(
     (message: string, type: "success" | "error") => {
@@ -83,18 +84,27 @@ export function PrinterManager({ onShowToast }: PrinterManagerProps) {
     setLoading(true);
     setError("");
     try {
-      let useBridge = false;
+      let discoveredUrl: string | null = null;
       if (onCloud) {
-        useBridge = await isLocalServerAvailable();
-        setBridgeAvailable(useBridge);
+        discoveredUrl = await discoverBridgeUrl();
+        setBridgeAvailable(!!discoveredUrl);
         setBridgeChecked(true);
+        if (discoveredUrl === 'CLOUD_QUEUE') {
+          setBridgeMode('cloud');
+        } else if (discoveredUrl) {
+          setBridgeMode('local');
+        } else {
+          setBridgeMode('none');
+        }
+      } else {
+        setBridgeMode('local');
       }
 
-      const data = await bridgeFetchPrinters(useBridge) as SystemPrinter[];
+      const data = await bridgeFetchPrinters(!!discoveredUrl, discoveredUrl) as SystemPrinter[];
       setPrinters(data);
 
-      if (data.length === 0 && onCloud && !useBridge) {
-        setError("Servidor local no detectado. Ejecuta instalar_zebra.bat en este PC.");
+      if (data.length === 0 && onCloud && !discoveredUrl) {
+        setError("Sin servidor local. Ejecuta instalar_zebra.bat en este PC.");
       }
 
       // Update history: merge detected with saved history
@@ -152,16 +162,20 @@ export function PrinterManager({ onShowToast }: PrinterManagerProps) {
                 Detección, historial y predeterminada
               </span>
             </p>
-            {onCloud && bridgeChecked && (
-              bridgeAvailable ? (
-                <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                  <Wifi className="w-3 h-3" /> Conectado al servidor local
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                  <WifiOff className="w-3 h-3" /> Sin servidor local — ejecuta instalar_zebra.bat
-                </span>
-              )
+            {onCloud && bridgeChecked && bridgeMode === 'local' && (
+              <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                <Wifi className="w-3 h-3" /> Modo Local — Impresión directa
+              </span>
+            )}
+            {onCloud && bridgeChecked && bridgeMode === 'cloud' && (
+              <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                <Wifi className="w-3 h-3" /> Modo Nube — Vía cola de impresión
+              </span>
+            )}
+            {onCloud && bridgeChecked && bridgeMode === 'none' && (
+              <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                <WifiOff className="w-3 h-3" /> Sin servidor local — ejecuta instalar_zebra.bat
+              </span>
             )}
           </div>
         </div>

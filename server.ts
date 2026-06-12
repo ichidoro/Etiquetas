@@ -1042,8 +1042,8 @@ function startBridgeServices() {
               { timeout: 15000 },
               (err, stdout) => {
                 const output = (stdout || '').trim();
+                try { fs.unlinkSync(tempFile); } catch {}
                 if (err || output.startsWith('FAIL') || output.startsWith('ERROR')) {
-                  try { fs.unlinkSync(tempFile); } catch {}
                   reject(new Error(output || err?.message || 'Print failed'));
                 } else {
                   resolve();

@@ -130,6 +130,25 @@ export async function sendPrintJob(
   bridgeUrl?: string | null
 ): Promise<{ ok: boolean; message: string }> {
   
+  // Local mode — always print directly via same-origin endpoint
+  if (!isRunningOnCloud()) {
+    try {
+      console.log(`[PrintBridge] Local mode → direct print to /api/print/usb → ${printerName}`);
+      const res = await fetch("/api/print/usb", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ zpl, printerName }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return { ok: true, message: data.message || "Impresion directa exitosa" };
+      }
+      return { ok: false, message: data.error || "Error de impresión" };
+    } catch (e: any) {
+      return { ok: false, message: "Error de conexión con servidor local: " + e.message };
+    }
+  }
+
   // Cloud queue mode — send via cloud relay
   if (bridgeUrl === "CLOUD_QUEUE") {
     console.log(`[PrintBridge] Sending print job via CLOUD QUEUE → ${printerName}`);
@@ -150,7 +169,7 @@ export async function sendPrintJob(
       });
       const data = await res.json();
       if (res.ok) {
-        return { ok: true, message: "Trabajo enviado a la cola. Se imprimirá en unos segundos..." };
+        return { ok: true, message: "☁️ Enviado via nube. Imprimiendo en ~5 segundos..." };
       }
       return { ok: false, message: data.error || "Error al encolar impresión" };
     } catch (e: any) {
@@ -170,7 +189,7 @@ export async function sendPrintJob(
     });
     const data = await res.json();
     if (res.ok) {
-      return { ok: true, message: data.message || "Impresión exitosa" };
+      return { ok: true, message: data.message || "Impresion directa exitosa" };
     }
     return { ok: false, message: data.error || "Error de impresión" };
   } catch (e: any) {
