@@ -972,29 +972,30 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
 
               {/* Printer selector */}
               <div className="flex-1 min-w-0">
-                <label htmlFor="free-printer" className="block text-[8px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
-                  <span>Impresora</span>
-                  {systemPrinters.length > 0 && selectedSystemPrinter === loadDefaultPrinter() && (
-                    <span className="text-emerald-400 ml-1">★</span>
+                <label className="block">
+                  <span className="block text-[8px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
+                    <span>Impresora</span>
+                    {systemPrinters.length > 0 && selectedSystemPrinter === loadDefaultPrinter() && (
+                      <span className="text-emerald-400 ml-1">★</span>
+                    )}
+                  </span>
+                  {systemPrinters.length > 0 ? (
+                    <select
+                      aria-label="Seleccionar impresora"
+                      className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-white outline-none cursor-pointer"
+                      value={selectedSystemPrinter}
+                      onChange={(e) => handlePrinterChange(e.target.value)}
+                    >
+                      {systemPrinters.map((p) => (
+                        <option key={p.Name} value={p.Name}>{p.Name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div role="status" className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-slate-500 italic">
+                      <span>Sin impresoras</span>
+                    </div>
                   )}
                 </label>
-                {systemPrinters.length > 0 ? (
-                  <select
-                    id="free-printer"
-                    aria-label="Seleccionar impresora"
-                    className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-white outline-none cursor-pointer"
-                    value={selectedSystemPrinter}
-                    onChange={(e) => handlePrinterChange(e.target.value)}
-                  >
-                    {systemPrinters.map((p) => (
-                      <option key={p.Name} value={p.Name}>{p.Name}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <div id="free-printer" role="status" className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-slate-500 italic">
-                    <span>Sin impresoras</span>
-                  </div>
-                )}
               </div>
 
               {/* Copies */}
