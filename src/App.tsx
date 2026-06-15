@@ -51,7 +51,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState<
     "maestro" | "formatos" | "historial" | "configuracion" | "disenador"
   >("maestro");
-  const [configTab, setConfigTab] = useState<"turso" | "operadores" | "impresoras" | "instalacion" | "consola">("operadores");
+  const [configTab, setConfigTab] = useState<"basedatos" | "operadores" | "impresoras" | "instalacion" | "consola">("operadores");
   const [dbStatus, setDbStatus] = useState<{ dbType: string; dbUrl: string }>({
     dbType: "local-sqlite",
     dbUrl: "file:local.db",
@@ -469,8 +469,9 @@ export default function App() {
     <div className="flex h-screen bg-slate-100 text-slate-700 font-sans overflow-hidden">
       {/* Sidebar */}
       <aside className="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0">
-        <div className="p-6 text-xl font-bold border-b border-slate-800 flex items-center">
-          ZebraBridge Pro
+        <div className="p-6 text-xl font-bold border-b border-slate-800 flex items-center gap-3">
+          <img src="/tracelabel-logo.png" alt="TraceLabel" className="w-8 h-8 rounded" />
+          TraceLabel
         </div>
         <nav className="flex-1 mt-4 space-y-1">
           <div
@@ -513,10 +514,7 @@ export default function App() {
         {/* DB Connection Status */}
         <div className="p-6 border-t border-slate-800">
           <div className="text-[10px] text-slate-500 break-all leading-tight">
-            {dbStatus.dbType === "turso-cloud" ? "☁️ Cloud: " : "💾 Local: "}
-            {dbStatus.dbType === "turso-cloud"
-              ? dbStatus.dbUrl.split("?")[0]
-              : "SQLite"}
+            {dbStatus.dbType === "turso-cloud" ? "☁️ Nube" : "💾 Local"}
           </div>
         </div>
       </aside>
@@ -545,12 +543,12 @@ export default function App() {
             {dbStatus.dbType === "turso-cloud" ? (
               <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold border border-emerald-200">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                Conectado a Turso (Cloud)
+                ☁️ Base de datos en la nube
               </div>
             ) : (
               <div
                 className="flex items-center gap-2 bg-amber-50 text-amber-700 px-3 py-1.5 rounded-full text-xs font-semibold border border-amber-200"
-                title="Usando SQLite en memoria / local"
+                title="Base de datos local"
               >
                 <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                 Base de datos Local
@@ -1395,15 +1393,15 @@ export default function App() {
                     <span>Operadores de Línea</span>
                   </button>
                   <button
-                    onClick={() => setConfigTab("turso")}
+                    onClick={() => setConfigTab("basedatos")}
                     className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors border-b-2 cursor-pointer ${
-                      configTab === "turso"
+                      configTab === "basedatos"
                         ? "border-blue-500 text-blue-600"
                         : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
                     }`}
                   >
                     <Settings className="w-4 h-4" />
-                    <span>Turso BD</span>
+                    <span>Base de Datos</span>
                   </button>
                   <button
                     onClick={() => setConfigTab("impresoras")}
@@ -1445,8 +1443,8 @@ export default function App() {
                   <EmpleadosManager onShowToast={showToast} />
                 )}
 
-                {/* Turso BD tab */}
-                {configTab === "turso" && (
+                {/* Base de Datos tab */}
+                {configTab === "basedatos" && (
                   <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 sm:p-8">
                     <h2 className="text-xl font-bold text-slate-800 mb-4">
                       Configuración de Base de Datos
@@ -1460,8 +1458,8 @@ export default function App() {
                           <span className="font-medium w-32">Tipo db:</span>
                           <span>
                             {dbStatus.dbType === "turso-cloud"
-                              ? "Base de Datos Cloud (Turso/libSQL)"
-                              : "SQLite Local (En Memoria/Archivo)"}
+                              ? "Base de datos en la nube"
+                              : "Base de datos local"}
                           </span>
                         </div>
                         <div className="flex text-sm text-slate-600">
@@ -1474,17 +1472,10 @@ export default function App() {
                         </div>
                       </div>
                       <p className="text-sm text-slate-500">
-                        Para conectar a una base de datos externa de la nube en
-                        Turso, este proyecto debe configurarse a nivel de servidor
-                        estableciendo la variable de entorno{" "}
-                        <code className="bg-slate-100 px-1 rounded">
-                          TURSO_DATABASE_URL
-                        </code>{" "}
-                        y{" "}
-                        <code className="bg-slate-100 px-1 rounded">
-                          TURSO_AUTH_TOKEN
-                        </code>
-                        .
+                        La conexión a la base de datos en la nube se configura
+                        automáticamente durante el despliegue. Los datos se
+                        sincronizan en tiempo real entre todos los computadores
+                        conectados.
                       </p>
                     </div>
                   </div>
@@ -1504,7 +1495,7 @@ export default function App() {
                         <Monitor className="w-6 h-6" /> Instalar en otro computador
                       </h2>
                       <p className="text-blue-100 text-sm">
-                        Instala ZebraBridge Pro en cualquier PC con impresora Zebra. Los datos se sincronizan automáticamente vía Turso Cloud.
+                        Instala TraceLabel Bridge en cualquier PC con impresora Zebra. Los datos se sincronizan automáticamente vía la nube.
                       </p>
                     </div>
 
@@ -1576,10 +1567,10 @@ export default function App() {
                             <button
                               onClick={() => {
                                 const bat = String.raw`@echo off
-title ZebraBridge - Instalando...
+title TraceLabel - Instalando...
 echo.
 echo ====================================================
-echo   ZebraBridge Pro - Instalador Automatico
+echo   TraceLabel Bridge - Instalador Automatico
 echo ====================================================
 echo.
 
@@ -1599,7 +1590,7 @@ if %errorlevel% neq 0 (
 for /f "tokens=*" %%v in ('node --version') do echo [OK] Node.js %%v encontrado
 
 REM -- 2. Crear carpeta de trabajo
-set "ZEBRA_DIR=%USERPROFILE%\ZebraBridge"
+set "ZEBRA_DIR=%USERPROFILE%\TraceLabel"
 if not exist "%ZEBRA_DIR%" mkdir "%ZEBRA_DIR%"
 echo [OK] Carpeta: %ZEBRA_DIR%
 
@@ -1608,7 +1599,7 @@ echo [..] Deteniendo bridge anterior...
 for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":3000 " ^| findstr "LISTENING"') do (
     taskkill /PID %%a /F >nul 2>&1
 )
-schtasks /end /tn "ZebraBridge" >nul 2>&1
+schtasks /end /tn "TraceLabel" >nul 2>&1
 timeout /t 2 /nobreak >nul
 echo [OK] Bridge anterior detenido
 
@@ -1638,20 +1629,20 @@ echo [OK] Lanzador invisible creado
 
 REM -- 7. Configurar inicio automatico al encender PC
 echo [..] Configurando inicio automatico...
-schtasks /delete /tn "ZebraBridge" /f >nul 2>&1
-schtasks /create /tn "ZebraBridge" /tr "wscript \"%ZEBRA_DIR%\launch-silent.vbs\"" /sc onlogon /rl highest /f >nul 2>&1
+schtasks /delete /tn "TraceLabel" /f >nul 2>&1
+schtasks /create /tn "TraceLabel" /tr "wscript \"%ZEBRA_DIR%\launch-silent.vbs\"" /sc onlogon /rl highest /f >nul 2>&1
 if %errorlevel% equ 0 (
     echo [OK] Tarea programada creada
 ) else (
     set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
-    copy /Y "%ZEBRA_DIR%\launch-silent.vbs" "%STARTUP%\ZebraBridge.vbs" >nul 2>&1
+    copy /Y "%ZEBRA_DIR%\launch-silent.vbs" "%STARTUP%\TraceLabel.vbs" >nul 2>&1
     echo [OK] Inicio automatico via carpeta Startup
 )
 
 REM -- 8. Abrir firewall
 echo [..] Configurando firewall...
-netsh advfirewall firewall delete rule name="ZebraBridge" >nul 2>&1
-netsh advfirewall firewall add rule name="ZebraBridge" dir=in action=allow protocol=TCP localport=3000 >nul 2>&1
+netsh advfirewall firewall delete rule name="TraceLabel" >nul 2>&1
+netsh advfirewall firewall add rule name="TraceLabel" dir=in action=allow protocol=TCP localport=3000 >nul 2>&1
 echo [OK] Firewall configurado
 
 REM -- 9. Iniciar ahora (invisible, sin ventana)
@@ -1682,12 +1673,12 @@ timeout /t 15
                                 const url = URL.createObjectURL(blob);
                                 const a = document.createElement('a');
                                 a.href = url;
-                                a.download = 'instalar_zebra.bat';
+                                a.download = 'instalar_tracelabel.bat';
                                 document.body.appendChild(a);
                                 a.click();
                                 document.body.removeChild(a);
                                 URL.revokeObjectURL(url);
-                                showToast('Descargado: instalar_zebra.bat', 'success');
+                                showToast('Descargado: instalar_tracelabel.bat', 'success');
                               }}
                               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
                             >

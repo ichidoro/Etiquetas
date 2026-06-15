@@ -148,31 +148,36 @@ function generateFreeZpl(
 
   const cols = format.labelsPerRow || 1;
   const rows = format.labelsPerColumn || 1;
-  const vGap = mmToDots(format.verticalGap || 2, dpi);
+  const vGapDots = mmToDots(format.verticalGap || 2, dpi);
 
   const totalPw = Math.max(labelW, labelW * cols + gapDots * Math.max(0, cols - 1) + marginL + marginR);
 
+  // ── Total page height: all rows + vertical gaps between them ──
+  const ll = rows * labelH + Math.max(0, rows - 1) * vGapDots;
+
   const today = formatDDMMYYYY(new Date());
 
-  let fullZpl = "";
+  // ── Single ^XA..^XZ block with all rows and columns ──
+  let zpl = "^XA\n";
+  zpl += "^CI28\n"; // UTF-8 encoding (ñ, á, é, etc.)
+  zpl += `^PW${totalPw}\n`;
+  zpl += `^LL${ll}\n`;
+  zpl += `~SD${format.darkness}\n`;
+  zpl += `^PR${format.printSpeed}\n`;
+  const shiftDots = Math.round((format.labelShift || 0) * dpmm);
+  if (shiftDots !== 0) zpl += `^LS${shiftDots}\n`;
+  const topDots = Math.round((format.labelTop || 0) * dpmm);
+  if (topDots !== 0) zpl += `^LT${topDots}\n`;
 
   for (let row = 0; row < rows; row++) {
-    let zpl = "^XA\n";
-    zpl += `^PW${totalPw}\n`;
-    zpl += `^LL${labelH}\n`;
-    zpl += `~SD${format.darkness}\n`;
-    zpl += `^PR${format.printSpeed}\n`;
-    const shiftDots = Math.round((format.labelShift || 0) * dpmm);
-    if (shiftDots !== 0) zpl += `^LS${shiftDots}\n`;
-    const topDots = Math.round((format.labelTop || 0) * dpmm);
-    if (topDots !== 0) zpl += `^LT${topDots}\n`;
+    const rowOffsetY = row * (labelH + vGapDots);
 
     for (let col = 0; col < cols; col++) {
       const colOffsetX = marginL + col * (labelW + gapDots);
 
       for (const el of elements) {
         const xDots = colOffsetX + mmToDots(el.x, dpi);
-        const yDots = mmToDots(el.y, dpi);
+        const yDots = rowOffsetY + mmToDots(el.y, dpi);
         const fontH = mmToDots(el.fontSize, dpi);
         const fontW = Math.round(fontH * 0.6);
 
@@ -186,28 +191,27 @@ function generateFreeZpl(
         if (el.type === "date") text = today;
         if (el.type === "number") text = String(startNumber).padStart(el.content.length || 4, "0");
 
-        const boldPrefix = "^A0N,";
+        const fontCmd = `^A0N,${fontH},${fontW}`;
 
         if (el.align === "C") {
-          zpl += `^FO${colOffsetX},${yDots}^FB${usableW},1,0,C,0${boldPrefix}${fontH},${fontW}^FD${text}^FS\n`;
+          zpl += `^FO${colOffsetX},${yDots}^FB${usableW},1,0,C,0${fontCmd}^FD${text}^FS\n`;
         } else if (el.align === "R") {
-          zpl += `^FO${colOffsetX},${yDots}^FB${usableW},1,0,R,0${boldPrefix}${fontH},${fontW}^FD${text}^FS\n`;
+          zpl += `^FO${colOffsetX},${yDots}^FB${usableW},1,0,R,0${fontCmd}^FD${text}^FS\n`;
         } else {
-          zpl += `^FO${xDots},${yDots}${boldPrefix}${fontH},${fontW}^FD${text}^FS\n`;
+          zpl += `^FO${xDots},${yDots}${fontCmd}^FD${text}^FS\n`;
         }
       }
     }
-
-    zpl += "^PQ1,0,1,Y\n";
-    zpl += "^XZ\n";
-    fullZpl += zpl;
   }
 
-  // If copies > 1, wrap in repeat
+  zpl += "^PQ1,0,1,Y\n";
+  zpl += "^XZ\n";
+
+  // If copies > 1, repeat the entire ZPL block
   if (copies > 1) {
-    return fullZpl.repeat(copies);
+    return zpl.repeat(copies);
   }
-  return fullZpl;
+  return zpl;
 }
 
 // ─── Interactive Preview ─────────────────────────────────────────────────────
