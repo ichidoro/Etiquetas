@@ -93,17 +93,47 @@ export async function fetchPrinters(
   
   // Direct local bridge (localhost:3000 on same PC)
   if (bridgeUrl && bridgeUrl !== "CLOUD_QUEUE") {
+    let localPrinters: { Name: string; PortName: string; DriverName: string; _bridgeId?: string; _bridgeHost?: string }[] = [];
     try {
       console.log(`[PrintBridge] Fetching printers from: ${bridgeUrl}`);
       const res = await fetch(`${bridgeUrl}/api/system-printers`);
-      if (!res.ok) return [];
-      const printers = await res.json();
-      console.log(`[PrintBridge] Found ${printers.length} printers`);
-      return printers;
+      if (res.ok) {
+        const printers = await res.json();
+        localPrinters = printers.map((p: any) => ({
+          ...p,
+          PortName: `${p.PortName || 'USB'} · Este PC`,
+          _bridgeHost: 'Este PC',
+        }));
+        console.log(`[PrintBridge] Found ${localPrinters.length} local printers`);
+      }
     } catch (err) {
       console.log("[PrintBridge] Error fetching printers from bridge:", err);
-      return [];
     }
+
+    // Also fetch remote printers from cloud bridges
+    const localNames = new Set(localPrinters.map(p => p.Name));
+    try {
+      const bridges = await getAllBridges();
+      printerToBridge = new Map();
+      for (const bridge of bridges) {
+        if (!bridge.printers || bridge.printers.length === 0) continue;
+        for (const p of bridge.printers) {
+          printerToBridge.set(p.Name, bridge.id);
+          if (!localNames.has(p.Name)) {
+            localNames.add(p.Name);
+            localPrinters.push({
+              Name: p.Name,
+              PortName: `via ${bridge.hostname}`,
+              DriverName: p.DriverName || "",
+              _bridgeId: bridge.id,
+              _bridgeHost: bridge.hostname,
+            });
+          }
+        }
+      }
+    } catch {}
+
+    return localPrinters;
   }
 
   // Cloud queue mode — get printers from ALL bridges and merge

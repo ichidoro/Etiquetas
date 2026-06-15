@@ -169,7 +169,7 @@ export function PrinterManager({ onShowToast }: PrinterManagerProps) {
             </p>
             {onCloud && bridgeChecked && bridgeMode === 'local' && (
               <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                <Wifi className="w-3 h-3" /> Modo Local — Impresión directa
+                <Wifi className="w-3 h-3" /> Modo Nube + Bridge Local
               </span>
             )}
             {onCloud && bridgeChecked && bridgeMode === 'cloud' && (
