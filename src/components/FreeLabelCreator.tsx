@@ -947,7 +947,7 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
             <div className="flex items-center gap-3">
               {/* Format selector */}
               <div className="min-w-0" style={{ width: '200px' }}>
-                <label className="block text-[8px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
+                <label htmlFor="free-format" className="block text-[8px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
                   <span>Formato</span>
                 </label>
                 <select
@@ -965,7 +965,7 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
 
               {/* Printer selector */}
               <div className="flex-1 min-w-0">
-                <label className="block text-[8px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
+                <label htmlFor="free-printer" className="block text-[8px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
                   <span>Impresora</span>
                   {systemPrinters.length > 0 && selectedSystemPrinter === loadDefaultPrinter() && (
                     <span className="text-emerald-400 ml-1">★</span>
@@ -992,7 +992,7 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
 
               {/* Copies */}
               <div style={{ width: '70px' }}>
-                <label className="block text-[8px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
+                <label htmlFor="free-copies" className="block text-[8px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
                   <span>Copias</span>
                 </label>
                 <input
@@ -1007,7 +1007,7 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
               {/* Start number (conditional) */}
               {elements.some((el) => el.type === "number") && (
                 <div style={{ width: '70px' }}>
-                  <label className="block text-[8px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
+                  <label htmlFor="free-start-number" className="block text-[8px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
                     <span>Inicio #</span>
                   </label>
                   <input
@@ -1080,7 +1080,7 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
               </button>
             </div>
             <div className="p-5">
-              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+              <label htmlFor="free-save-name" className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                 <span>Nombre del diseño</span>
               </label>
               <input

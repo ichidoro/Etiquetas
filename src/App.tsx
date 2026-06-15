@@ -577,6 +577,7 @@ export default function App() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                    <label htmlFor="file-upload" className="sr-only">Importar CSV/Excel</label>
                     <input
                       id="file-upload"
                       aria-label="Importar CSV/Excel"
@@ -644,6 +645,7 @@ export default function App() {
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <Search className="h-5 w-5 text-slate-400" />
                     </div>
+                    <label htmlFor="filter-search" className="sr-only">Buscar producto</label>
                     <input
                       id="filter-search"
                       aria-label="Buscar producto"
@@ -658,6 +660,7 @@ export default function App() {
                   {/* Filter: Línea de Negocio */}
                   {businessLines.length > 0 && (
                     <div className="md:w-48">
+                      <label htmlFor="filter-business-line" className="sr-only">Línea de Negocio</label>
                       <select
                         id="filter-business-line"
                         aria-label="Filtrar por línea de negocio"
@@ -682,6 +685,7 @@ export default function App() {
                   {/* Filter: Familia */}
                   {families.length > 0 && (
                     <div className="md:w-48">
+                      <label htmlFor="filter-family" className="sr-only">Familia</label>
                       <select
                         id="filter-family"
                         aria-label="Filtrar por familia"
@@ -705,6 +709,7 @@ export default function App() {
                   {/* Filter: Marca */}
                   {marcas.length > 0 && (
                     <div className="md:w-48">
+                      <label htmlFor="filter-marca" className="sr-only">Marca</label>
                       <select
                         id="filter-marca"
                         aria-label="Filtrar por marca"
@@ -724,6 +729,7 @@ export default function App() {
 
                   {/* Filter: Status */}
                   <div className="md:w-40">
+                    <label htmlFor="filter-status" className="sr-only">Estado</label>
                     <select
                       id="filter-status"
                       aria-label="Filtrar por estado"
@@ -935,6 +941,7 @@ export default function App() {
                           <h3 className="text-md font-semibold text-slate-800 mb-4 border-b pb-2">
                             Nombre del Formato
                         </h3>
+                        <label htmlFor="format-name" className="sr-only">Nombre del formato</label>
                         <input
                           id="format-name"
                           aria-label="Nombre del formato"
@@ -953,7 +960,7 @@ export default function App() {
                         </h3>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                            <label htmlFor="format-width" className="block text-xs font-medium text-slate-700 mb-1">
                               Ancho (mm)
                             </label>
                             <input
@@ -970,7 +977,7 @@ export default function App() {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                            <label htmlFor="format-height" className="block text-xs font-medium text-slate-700 mb-1">
                               Alto (mm)
                             </label>
                             <input
@@ -995,7 +1002,7 @@ export default function App() {
                         </h3>
                         <div className="grid grid-cols-2 gap-4 mb-4">
                           <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                            <label htmlFor="format-margin-left" className="block text-xs font-medium text-slate-700 mb-1">
                               Margen Izquierdo (mm)
                             </label>
                             <input
@@ -1012,7 +1019,7 @@ export default function App() {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                            <label htmlFor="format-margin-right" className="block text-xs font-medium text-slate-700 mb-1">
                               Margen Derecho (mm)
                             </label>
                             <input
@@ -1029,7 +1036,7 @@ export default function App() {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                            <label htmlFor="format-margin-top" className="block text-xs font-medium text-slate-700 mb-1">
                               Margen Superior (mm)
                             </label>
                             <input
@@ -1046,7 +1053,7 @@ export default function App() {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                            <label htmlFor="format-margin-bottom" className="block text-xs font-medium text-slate-700 mb-1">
                               Margen Inferior (mm)
                             </label>
                             <input
@@ -1065,7 +1072,7 @@ export default function App() {
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                            <label htmlFor="format-labels-row" className="block text-xs font-medium text-slate-700 mb-1">
                               Conteo Horizontal
                             </label>
                             <input
@@ -1084,7 +1091,7 @@ export default function App() {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                            <label htmlFor="format-h-gap" className="block text-xs font-medium text-slate-700 mb-1">
                               Espacio Horizontal (mm)
                             </label>
                             <input
@@ -1103,7 +1110,7 @@ export default function App() {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                            <label htmlFor="format-labels-col" className="block text-xs font-medium text-slate-700 mb-1">
                               Conteo Vertical
                             </label>
                             <input
@@ -1122,7 +1129,7 @@ export default function App() {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                            <label htmlFor="format-v-gap" className="block text-xs font-medium text-slate-700 mb-1">
                               Separación Vertical (mm)
                             </label>
                             <input
@@ -1149,7 +1156,7 @@ export default function App() {
                         </h3>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                            <label htmlFor="format-dpi" className="block text-xs font-medium text-slate-700 mb-1">
                               DPI (Resolución)
                             </label>
                             <select
@@ -1170,7 +1177,7 @@ export default function App() {
                             </select>
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                            <label htmlFor="format-darkness" className="block text-xs font-medium text-slate-700 mb-1">
                               Oscuridad (~SD)
                             </label>
                             <input
@@ -1189,7 +1196,7 @@ export default function App() {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                            <label htmlFor="format-speed" className="block text-xs font-medium text-slate-700 mb-1">
                               Velocidad (^PR)
                             </label>
                             <input
@@ -1208,7 +1215,7 @@ export default function App() {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                            <label htmlFor="format-orientation" className="block text-xs font-medium text-slate-700 mb-1">
                               Orientación
                             </label>
                             <select
@@ -1231,7 +1238,7 @@ export default function App() {
                             </select>
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                            <label htmlFor="format-h-shift" className="block text-xs font-medium text-slate-700 mb-1">
                               Ajuste Horizontal ^LS (mm)
                             </label>
                             <input
@@ -1250,7 +1257,7 @@ export default function App() {
                             <p className="text-[10px] text-slate-500 mt-1">negativo = izquierda</p>
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                            <label htmlFor="format-v-shift" className="block text-xs font-medium text-slate-700 mb-1">
                               Ajuste Vertical ^LT (mm)
                             </label>
                             <input

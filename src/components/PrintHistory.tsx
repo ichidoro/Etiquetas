@@ -134,6 +134,7 @@ export function PrintHistory() {
               <span className="text-xs text-slate-400">{filtered.length} registros</span>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              <label htmlFor="history-search" className="sr-only">Buscar producto o impresora</label>
               <input
                 id="history-search"
                 aria-label="Buscar producto o impresora"
@@ -143,6 +144,7 @@ export function PrintHistory() {
                 placeholder="Buscar producto o impresora..."
                 className="text-xs border border-slate-200 rounded px-2 py-1 bg-white text-slate-600 w-48"
               />
+              <label htmlFor="history-filter-mode" className="sr-only">Filtrar por modo</label>
               <select
                 id="history-filter-mode"
                 aria-label="Filtrar por modo"
@@ -154,6 +156,7 @@ export function PrintHistory() {
                 <option value="local">Local / USB</option>
                 <option value="cloud">Nube / Cola</option>
               </select>
+              <label htmlFor="history-filter-status" className="sr-only">Filtrar por estado</label>
               <select
                 id="history-filter-status"
                 aria-label="Filtrar por estado"

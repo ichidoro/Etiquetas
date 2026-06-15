@@ -426,7 +426,7 @@ export function PrintModal({
 
               <div className="space-y-2.5 mb-3">
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Formato</label>
+                  <label htmlFor="print-format" className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Formato</label>
                   <select
                     id="print-format"
                     aria-label="Formato de etiqueta"
@@ -441,7 +441,7 @@ export function PrintModal({
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Etiquetas</label>
+                  <label htmlFor="print-copies" className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Etiquetas</label>
                   <input
                     id="print-copies"
                     aria-label="Cantidad de copias"
@@ -456,7 +456,7 @@ export function PrintModal({
               {/* Printer — with WebUSB fallback */}
               <div className="mb-3">
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Impresora</label>
+                  <label htmlFor="print-printer" className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Impresora</label>
                   {useWebUsb ? (
                     <span className="text-[9px] text-blue-400 font-medium flex items-center gap-1">
                       <Usb className="w-3 h-3" /> WebUSB

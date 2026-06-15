@@ -144,6 +144,7 @@ export function SystemConsole() {
 
           <div className="flex items-center gap-2">
             {/* Filters */}
+            <label htmlFor="console-filter-level" className="sr-only">Filtrar por nivel</label>
             <select
               id="console-filter-level"
               aria-label="Filtrar por nivel"
@@ -157,6 +158,7 @@ export function SystemConsole() {
               <option value="success">Solo exitosos</option>
               <option value="info">Solo info</option>
             </select>
+            <label htmlFor="console-filter-source" className="sr-only">Filtrar por origen</label>
             <select
               id="console-filter-source"
               aria-label="Filtrar por origen"

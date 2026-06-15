@@ -208,6 +208,7 @@ export function EmpleadosManager({ onShowToast }: EmpleadosManagerProps) {
       {/* ---- Search bar ---------------------------------------------------- */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+        <label htmlFor="emp-search" className="sr-only">Buscar operador</label>
         <input
           id="emp-search"
           aria-label="Buscar operador"
@@ -456,7 +457,7 @@ export function EmpleadosManager({ onShowToast }: EmpleadosManagerProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                <label htmlFor="emp-new-name" className="block text-xs font-semibold text-slate-500 uppercase mb-1">
                   <span>Nombre *</span>
                 </label>
                 <input
@@ -473,7 +474,7 @@ export function EmpleadosManager({ onShowToast }: EmpleadosManagerProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                <label htmlFor="emp-new-linea" className="block text-xs font-semibold text-slate-500 uppercase mb-1">
                   <span>Línea de Proceso *</span>
                 </label>
                 <input
@@ -490,7 +491,7 @@ export function EmpleadosManager({ onShowToast }: EmpleadosManagerProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                <label htmlFor="emp-new-labor" className="block text-xs font-semibold text-slate-500 uppercase mb-1">
                   <span>Labor *</span>
                 </label>
                 <input

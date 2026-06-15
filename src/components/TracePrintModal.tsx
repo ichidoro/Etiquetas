@@ -599,6 +599,7 @@ export function TracePrintModal({
                     <Calendar className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="text-[8px] font-semibold text-slate-400 uppercase">Elaboración</div>
+                      <label htmlFor="trace-date" className="sr-only">Fecha de elaboración</label>
                       <input type="date" id="trace-date" aria-label="Fecha de elaboración" value={toInputDate(elabDate)}
                         onChange={(e) => setElabDate(new Date(e.target.value + "T12:00:00"))}
                         className="w-full text-xs font-semibold text-slate-800 bg-transparent outline-none cursor-pointer" />
@@ -610,6 +611,7 @@ export function TracePrintModal({
                       <span className="text-amber-400 text-xs flex-shrink-0">📅</span>
                       <div className="flex-1 min-w-0">
                         <div className="text-[8px] font-semibold text-amber-500 uppercase">Días de vida útil</div>
+                        <label htmlFor="trace-expiry-days" className="sr-only">Días de caducidad</label>
                         <input type="number" id="trace-expiry-days" aria-label="Días de caducidad" min={1} max={9999} value={manualDays}
                           onChange={(e) => setManualDays(Math.max(1, Number(e.target.value)))}
                           className="w-full text-xs font-semibold text-slate-800 bg-transparent outline-none" />
@@ -647,7 +649,7 @@ export function TracePrintModal({
                 <div className="space-y-2">
                   {/* Operator selector */}
                   <div className="px-2.5 py-2 bg-white rounded-lg border border-slate-200">
-                    <div className="text-[8px] font-semibold text-slate-400 uppercase mb-1">Operador</div>
+                    <div className="text-[8px] font-semibold text-slate-400 uppercase mb-1"><label htmlFor="trace-operator">Operador</label></div>
                     <select
                       id="trace-operator"
                       aria-label="Seleccionar operador"
@@ -761,6 +763,7 @@ export function TracePrintModal({
               {/* Copies */}
               <div>
                 <h3 className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Copias</h3>
+                <label htmlFor="trace-copies" className="sr-only">Cantidad de copias</label>
                 <input type="number" id="trace-copies" aria-label="Cantidad de copias" min={1} max={999} value={copies}
                   onChange={(e) => setCopies(Math.max(1, Number(e.target.value)))}
                   className="w-full rounded-md border border-slate-200 bg-white shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm p-2 text-slate-800 outline-none font-semibold" />
@@ -841,7 +844,7 @@ export function TracePrintModal({
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3">
               {/* Format selector */}
               <div>
-                <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Formato</label>
+                <label htmlFor="trace-format" className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Formato</label>
                 <select id="trace-format" aria-label="Formato de etiqueta" className="w-full rounded-md border border-slate-600 bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm p-2 text-white outline-none cursor-pointer"
                   value={activeFormatId} onChange={(e) => setActiveFormatId(e.target.value)}>
                   {labelFormats.map((f) => (<option key={f.id} value={f.id}>{f.name}</option>))}
@@ -851,7 +854,7 @@ export function TracePrintModal({
               {/* Printer selector */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider">Impresora</label>
+                  <label htmlFor="trace-printer" className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider">Impresora</label>
                   {useWebUsb ? (
                     <span className="text-[8px] text-blue-400 font-medium flex items-center gap-1">
                       <Usb className="w-3 h-3" /> WebUSB
