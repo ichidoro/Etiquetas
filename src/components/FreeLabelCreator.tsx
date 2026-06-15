@@ -981,6 +981,8 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
                   </span>
                   {systemPrinters.length > 0 ? (
                     <select
+                      id="free-printer"
+                      name="free-printer"
                       aria-label="Seleccionar impresora"
                       className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-white outline-none cursor-pointer"
                       value={selectedSystemPrinter}
