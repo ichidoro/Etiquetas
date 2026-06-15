@@ -154,25 +154,25 @@ function generateFreeZpl(
 
   const today = formatDDMMYYYY(new Date());
 
-  let zpl = "^XA\n";
-  zpl += `^PW${totalPw}\n`;
-  const totalLL = rows * labelH + Math.max(0, rows - 1) * vGap;
-  zpl += `^LL${totalLL}\n`;
-  zpl += `~SD${format.darkness}\n`;
-  zpl += `^PR${format.printSpeed}\n`;
-  const shiftDots = Math.round((format.labelShift || 0) * dpmm);
-  if (shiftDots !== 0) zpl += `^LS${shiftDots}\n`;
-  const topDots = Math.round((format.labelTop || 0) * dpmm);
-  if (topDots !== 0) zpl += `^LT${topDots}\n`;
+  let fullZpl = "";
 
   for (let row = 0; row < rows; row++) {
+    let zpl = "^XA\n";
+    zpl += `^PW${totalPw}\n`;
+    zpl += `^LL${labelH}\n`;
+    zpl += `~SD${format.darkness}\n`;
+    zpl += `^PR${format.printSpeed}\n`;
+    const shiftDots = Math.round((format.labelShift || 0) * dpmm);
+    if (shiftDots !== 0) zpl += `^LS${shiftDots}\n`;
+    const topDots = Math.round((format.labelTop || 0) * dpmm);
+    if (topDots !== 0) zpl += `^LT${topDots}\n`;
+
     for (let col = 0; col < cols; col++) {
       const colOffsetX = marginL + col * (labelW + gapDots);
-      const rowOffsetY = row * (labelH + vGap);
 
       for (const el of elements) {
         const xDots = colOffsetX + mmToDots(el.x, dpi);
-        const yDots = rowOffsetY + mmToDots(el.y, dpi);
+        const yDots = mmToDots(el.y, dpi);
         const fontH = mmToDots(el.fontSize, dpi);
         const fontW = Math.round(fontH * 0.6);
 
@@ -197,11 +197,17 @@ function generateFreeZpl(
         }
       }
     }
+
+    zpl += "^PQ1,0,1,Y\n";
+    zpl += "^XZ\n";
+    fullZpl += zpl;
   }
 
-  zpl += `^PQ${copies},0,1,Y\n`;
-  zpl += "^XZ\n";
-  return zpl;
+  // If copies > 1, wrap in repeat
+  if (copies > 1) {
+    return fullZpl.repeat(copies);
+  }
+  return fullZpl;
 }
 
 // ─── Interactive Preview ─────────────────────────────────────────────────────
