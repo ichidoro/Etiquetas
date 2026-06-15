@@ -524,7 +524,7 @@ export function TracePrintModal({
         productName: product.item_name,
         productSku: product.sku,
         printerName: selectedSystemPrinter,
-        mode: bridgeUrl === 'CLOUD_QUEUE' ? 'cloud' : 'local',
+        mode: isRunningOnCloud() ? 'cloud' : 'local',
         copies: 1,
         status: result.ok ? 'success' : 'error',
         details: result.ok ? undefined : result.message,
