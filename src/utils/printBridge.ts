@@ -12,9 +12,12 @@
 const LOCAL_SERVER_URL = "http://localhost:3000";
 const PING_TIMEOUT = 5000;
 
-/** Fetch wrapper for local network requests — adds targetAddressSpace to suppress Chrome warnings */
+/** Fetch wrapper for local/loopback network requests — adds correct targetAddressSpace to suppress Chrome warnings */
 function localFetch(url: string, opts: RequestInit = {}): Promise<Response> {
-  return fetch(url, { ...opts, targetAddressSpace: 'local' } as RequestInit);
+  // Chrome distinguishes: localhost/127.x = 'loopback', 192.168.x/10.x = 'local'
+  const isLoopback = url.includes('localhost') || url.includes('127.0.0.1');
+  const addressSpace = isLoopback ? 'loopback' : 'local';
+  return fetch(url, { ...opts, targetAddressSpace: addressSpace } as RequestInit);
 }
 
 /** Check if we're running on Cloud (not localhost) */
