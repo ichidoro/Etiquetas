@@ -23,7 +23,10 @@ const PRINTER_STORAGE_KEY = "zebra-default-printer";
 const PRINTER_HISTORY_KEY = "zebra-printer-history";
 
 // Status codes → labels
-function statusLabel(code: number): { text: string; color: string } {
+function statusLabel(code: number | undefined | null): { text: string; color: string } {
+  if (code === undefined || code === null) {
+    return { text: "Disponible", color: "text-blue-600" };
+  }
   switch (code) {
     case 0:
       return { text: "Normal", color: "text-emerald-600" };
@@ -169,14 +172,9 @@ export function PrinterManager({ onShowToast }: PrinterManagerProps) {
                 Detección, historial y predeterminada
               </span>
             </p>
-            {onCloud && bridgeChecked && bridgeMode === 'local' && (
-              <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                <Wifi className="w-3 h-3" /> Modo Nube + Bridge Local
-              </span>
-            )}
-            {onCloud && bridgeChecked && bridgeMode === 'cloud' && (
+            {onCloud && bridgeChecked && (bridgeMode === 'local' || bridgeMode === 'cloud') && (
               <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                <Wifi className="w-3 h-3" /> Modo Nube — Vía cola de impresión
+                <Wifi className="w-3 h-3" /> Modo Nube
               </span>
             )}
             {onCloud && bridgeChecked && bridgeMode === 'none' && (
