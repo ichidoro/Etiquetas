@@ -985,7 +985,7 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
                     ))}
                   </select>
                 ) : (
-                  <div className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-slate-500 italic">
+                  <div id="free-printer" role="status" className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-slate-500 italic">
                     <span>Sin impresoras</span>
                   </div>
                 )}
