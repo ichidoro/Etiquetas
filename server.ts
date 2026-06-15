@@ -222,6 +222,11 @@ async function initDb() {
 
   const productCount = await db.execute("SELECT COUNT(*) as count FROM products");
   console.log(`📦 ${productCount.rows[0].count} productos en la base de datos Turso.`);
+
+  // Migration: uppercase all existing marcas
+  try {
+    await db.execute("UPDATE products SET marca = UPPER(marca) WHERE marca IS NOT NULL AND marca != UPPER(marca)");
+  } catch {}
 }
 
 // ── Logging helper ───────────────────────────────────────────────────────────
@@ -294,7 +299,7 @@ app.post("/api/products", async (req, res) => {
     const isActivo = activo !== undefined ? (activo ? 1 : 0) : 1;
     const result = await db.execute({
       sql: "INSERT INTO products (sku, item_name, business_line, family, ean13, dun14, marca, caducidad, activo, isp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      args: [sku, item_name, business_line || null, family || null, ean13 || null, dun14 || null, marca || null, caducidad || null, isActivo, isp || null],
+      args: [sku, item_name, business_line || null, family || null, ean13 || null, dun14 || null, marca ? String(marca).toUpperCase() : null, caducidad || null, isActivo, isp || null],
     });
     res.status(201).json({
       id: result.lastInsertRowid ? Number(result.lastInsertRowid) : 0,
@@ -326,7 +331,7 @@ app.put("/api/products/:id", async (req, res) => {
     const isActivo = activo !== undefined ? (activo ? 1 : 0) : 1;
     await db.execute({
       sql: "UPDATE products SET sku = ?, item_name = ?, business_line = ?, family = ?, ean13 = ?, dun14 = ?, marca = ?, caducidad = ?, activo = ?, isp = ? WHERE id = ?",
-      args: [sku, item_name, business_line || null, family || null, ean13 || null, dun14 || null, marca || null, caducidad || null, isActivo, isp || null, id],
+      args: [sku, item_name, business_line || null, family || null, ean13 || null, dun14 || null, marca ? String(marca).toUpperCase() : null, caducidad || null, isActivo, isp || null, id],
     });
     res.json({ id, sku, item_name, business_line, family, ean13, dun14, marca, caducidad, activo: isActivo === 1, isp });
   } catch (error: any) {
@@ -367,7 +372,7 @@ app.post("/api/products/batch", async (req, res) => {
         p.family || null,
         p.ean13 || null,
         p.dun14 || null,
-        p.marca || null,
+        p.marca ? String(p.marca).toUpperCase() : null,
         p.caducidad || null,
         p.activo !== undefined ? (p.activo ? 1 : 0) : 1,
         p.isp || null,

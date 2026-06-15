@@ -47,7 +47,8 @@ export function ProductForm({ product, onSave, onClose }: ProductFormProps) {
       const checked = (e.target as HTMLInputElement).checked;
       setFormData(prev => ({ ...prev, [name]: checked }));
     } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
+      const val = name === 'marca' ? value.toUpperCase() : value;
+      setFormData(prev => ({ ...prev, [name]: val }));
     }
   };
 
@@ -177,7 +178,7 @@ export function ProductForm({ product, onSave, onClose }: ProductFormProps) {
                 name="marca"
                 value={formData.marca}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm uppercase"
                 placeholder="Opcional"
               />
             </div>

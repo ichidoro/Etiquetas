@@ -329,7 +329,7 @@ export default function App() {
           dun14: (r["DUN14"] || r["DUN"] || r["DUN14CAJA"] || "")
             .toString()
             .trim(),
-          marca: (r["MARCA"] || "").toString().trim(),
+          marca: (r["MARCA"] || "").toString().trim().toUpperCase(),
           isp: (r["ISP"] || r["CODIGOISP"] || "").toString().trim(),
           caducidad: r["CADUCIDAD"] ? parseInt(r["CADUCIDAD"].toString().trim(), 10) : undefined,
           activo: r["ACTIVO"] !== undefined ? (String(r["ACTIVO"]).toUpperCase() === 'NO' || String(r["ACTIVO"]).toUpperCase() === 'FALSO' || String(r["ACTIVO"]) === '0' || String(r["ACTIVO"]).toUpperCase() === 'INACTIVO' ? false : true) : true,
