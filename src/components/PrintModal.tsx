@@ -251,7 +251,7 @@ export function PrintModal({
         productSku: product.sku,
         printerName: selectedSystemPrinter,
         mode: isRunningOnCloud() ? 'cloud' : 'local',
-        copies: copies,
+        copies: quantity,
         status: result.ok ? 'success' : 'error',
         details: result.ok ? undefined : result.message,
       });
