@@ -792,6 +792,7 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
                   {/* Content input (not for lines) */}
                   {el.type !== "line" && (
                     <div className="px-2 pb-1.5">
+                      <label htmlFor={`free-element-${idx}`} className="sr-only">Contenido del elemento</label>
                       <input
                         id={`free-element-${idx}`}
                         aria-label="Contenido del elemento"
