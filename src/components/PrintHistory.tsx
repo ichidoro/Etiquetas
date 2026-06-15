@@ -135,6 +135,8 @@ export function PrintHistory() {
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <input
+                id="history-search"
+                aria-label="Buscar producto o impresora"
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -142,6 +144,8 @@ export function PrintHistory() {
                 className="text-xs border border-slate-200 rounded px-2 py-1 bg-white text-slate-600 w-48"
               />
               <select
+                id="history-filter-mode"
+                aria-label="Filtrar por modo"
                 value={filterMode}
                 onChange={(e) => setFilterMode(e.target.value)}
                 className="text-xs border border-slate-200 rounded px-2 py-1 bg-white text-slate-600"
@@ -151,6 +155,8 @@ export function PrintHistory() {
                 <option value="cloud">Nube / Cola</option>
               </select>
               <select
+                id="history-filter-status"
+                aria-label="Filtrar por estado"
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
                 className="text-xs border border-slate-200 rounded px-2 py-1 bg-white text-slate-600"

@@ -793,6 +793,8 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
                   {el.type !== "line" && (
                     <div className="px-2 pb-1.5">
                       <input
+                        id={`free-element-${idx}`}
+                        aria-label="Contenido del elemento"
                         type="text"
                         value={el.content}
                         onChange={(e) => updateElement(el.id, { content: e.target.value })}
@@ -949,6 +951,8 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
                   <span>Formato</span>
                 </label>
                 <select
+                  id="free-format"
+                  aria-label="Formato de etiqueta"
                   className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-white outline-none cursor-pointer"
                   value={activeFormatId}
                   onChange={(e) => setActiveFormatId(e.target.value)}
@@ -969,6 +973,8 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
                 </label>
                 {systemPrinters.length > 0 ? (
                   <select
+                    id="free-printer"
+                    aria-label="Seleccionar impresora"
                     className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-white outline-none cursor-pointer"
                     value={selectedSystemPrinter}
                     onChange={(e) => handlePrinterChange(e.target.value)}
@@ -990,6 +996,8 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
                   <span>Copias</span>
                 </label>
                 <input
+                  id="free-copies"
+                  aria-label="Cantidad de copias"
                   type="number" min={1} max={999} value={copies}
                   onChange={(e) => setCopies(Math.max(1, Number(e.target.value)))}
                   className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-white outline-none font-semibold"
@@ -1003,6 +1011,8 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
                     <span>Inicio #</span>
                   </label>
                   <input
+                    id="free-start-number"
+                    aria-label="Número inicial"
                     type="number" min={1} value={startNumber}
                     onChange={(e) => setStartNumber(Math.max(1, Number(e.target.value)))}
                     className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-white outline-none font-semibold"
@@ -1074,6 +1084,8 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
                 <span>Nombre del diseño</span>
               </label>
               <input
+                id="free-save-name"
+                aria-label="Nombre del diseño"
                 type="text"
                 value={saveName}
                 onChange={(e) => setSaveName(e.target.value)}

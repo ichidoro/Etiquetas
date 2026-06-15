@@ -42,6 +42,8 @@ function setCors(res, req) {
   res.setHeader("Access-Control-Allow-Origin", origin);
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  // Chrome Private Network Access: allows HTTPS cloud pages to reach HTTP localhost
+  res.setHeader("Access-Control-Allow-Private-Network", "true");
 }
 
 // ── Get Windows printers via PowerShell ──────────────────────────────────────

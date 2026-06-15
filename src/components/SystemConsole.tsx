@@ -145,6 +145,8 @@ export function SystemConsole() {
           <div className="flex items-center gap-2">
             {/* Filters */}
             <select
+              id="console-filter-level"
+              aria-label="Filtrar por nivel"
               value={filterLevel}
               onChange={(e) => setFilterLevel(e.target.value)}
               className="text-xs border border-slate-200 rounded px-2 py-1 bg-white text-slate-600"
@@ -156,6 +158,8 @@ export function SystemConsole() {
               <option value="info">Solo info</option>
             </select>
             <select
+              id="console-filter-source"
+              aria-label="Filtrar por origen"
               value={filterSource}
               onChange={(e) => setFilterSource(e.target.value)}
               className="text-xs border border-slate-200 rounded px-2 py-1 bg-white text-slate-600"

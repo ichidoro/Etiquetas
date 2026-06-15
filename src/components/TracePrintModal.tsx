@@ -599,7 +599,7 @@ export function TracePrintModal({
                     <Calendar className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="text-[8px] font-semibold text-slate-400 uppercase">Elaboración</div>
-                      <input type="date" value={toInputDate(elabDate)}
+                      <input type="date" id="trace-date" aria-label="Fecha de elaboración" value={toInputDate(elabDate)}
                         onChange={(e) => setElabDate(new Date(e.target.value + "T12:00:00"))}
                         className="w-full text-xs font-semibold text-slate-800 bg-transparent outline-none cursor-pointer" />
                     </div>
@@ -610,7 +610,7 @@ export function TracePrintModal({
                       <span className="text-amber-400 text-xs flex-shrink-0">📅</span>
                       <div className="flex-1 min-w-0">
                         <div className="text-[8px] font-semibold text-amber-500 uppercase">Días de vida útil</div>
-                        <input type="number" min={1} max={9999} value={manualDays}
+                        <input type="number" id="trace-expiry-days" aria-label="Días de caducidad" min={1} max={9999} value={manualDays}
                           onChange={(e) => setManualDays(Math.max(1, Number(e.target.value)))}
                           className="w-full text-xs font-semibold text-slate-800 bg-transparent outline-none" />
                       </div>
@@ -649,6 +649,8 @@ export function TracePrintModal({
                   <div className="px-2.5 py-2 bg-white rounded-lg border border-slate-200">
                     <div className="text-[8px] font-semibold text-slate-400 uppercase mb-1">Operador</div>
                     <select
+                      id="trace-operator"
+                      aria-label="Seleccionar operador"
                       value={selectedOperadorId ?? ""}
                       onChange={(e) => {
                         const id = Number(e.target.value);
@@ -675,6 +677,8 @@ export function TracePrintModal({
                           <label className="flex items-center gap-1 cursor-pointer">
                             <input
                               type="checkbox"
+                              id="trace-custom-line"
+                              aria-label="Línea personalizada"
                               checked={useCustomLine}
                               onChange={(e) => {
                                 setUseCustomLine(e.target.checked);
@@ -691,6 +695,8 @@ export function TracePrintModal({
                       {useCustomLine || !selectedOperador.linea_proceso ? (
                         <input
                           type="text"
+                          id="trace-custom-text"
+                          aria-label="Texto línea personalizada"
                           value={lineaProceso}
                           onChange={(e) => setLineaProceso(e.target.value)}
                           placeholder="Ej: L1, L2, L3..."
@@ -755,7 +761,7 @@ export function TracePrintModal({
               {/* Copies */}
               <div>
                 <h3 className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Copias</h3>
-                <input type="number" min={1} max={999} value={copies}
+                <input type="number" id="trace-copies" aria-label="Cantidad de copias" min={1} max={999} value={copies}
                   onChange={(e) => setCopies(Math.max(1, Number(e.target.value)))}
                   className="w-full rounded-md border border-slate-200 bg-white shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm p-2 text-slate-800 outline-none font-semibold" />
               </div>
@@ -836,7 +842,7 @@ export function TracePrintModal({
               {/* Format selector */}
               <div>
                 <label className="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Formato</label>
-                <select className="w-full rounded-md border border-slate-600 bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm p-2 text-white outline-none cursor-pointer"
+                <select id="trace-format" aria-label="Formato de etiqueta" className="w-full rounded-md border border-slate-600 bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm p-2 text-white outline-none cursor-pointer"
                   value={activeFormatId} onChange={(e) => setActiveFormatId(e.target.value)}>
                   {labelFormats.map((f) => (<option key={f.id} value={f.id}>{f.name}</option>))}
                 </select>
@@ -878,7 +884,7 @@ export function TracePrintModal({
                 ) : (
                   // Server-side mode
                   systemPrinters.length > 0 ? (
-                    <select className="w-full rounded-md border border-slate-600 bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm p-2 text-white outline-none cursor-pointer"
+                    <select id="trace-printer" aria-label="Seleccionar impresora" className="w-full rounded-md border border-slate-600 bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm p-2 text-white outline-none cursor-pointer"
                       value={selectedSystemPrinter} onChange={(e) => handlePrinterChange(e.target.value)}>
                       {systemPrinters.map((p) => (<option key={p.Name} value={p.Name}>{p.Name} ({p.PortName})</option>))}
                     </select>

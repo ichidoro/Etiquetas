@@ -428,6 +428,8 @@ export function PrintModal({
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Formato</label>
                   <select
+                    id="print-format"
+                    aria-label="Formato de etiqueta"
                     className="w-full rounded-md border border-slate-600 bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm p-2 text-white outline-none cursor-pointer"
                     value={activeFormatId}
                     onChange={(e) => setActiveFormatId(e.target.value)}
@@ -441,6 +443,8 @@ export function PrintModal({
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Etiquetas</label>
                   <input
+                    id="print-copies"
+                    aria-label="Cantidad de copias"
                     type="number" min="1" max="999"
                     value={quantity}
                     onChange={(e) => setQuantity(Number(e.target.value))}
@@ -484,6 +488,8 @@ export function PrintModal({
                 ) : (
                   systemPrinters.length > 0 ? (
                     <select
+                      id="print-printer"
+                      aria-label="Seleccionar impresora"
                       className="w-full rounded-md border border-slate-600 bg-slate-700 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm p-2 text-white outline-none cursor-pointer"
                       value={selectedSystemPrinter}
                       onChange={(e) => handlePrinterChange(e.target.value)}

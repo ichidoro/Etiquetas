@@ -209,6 +209,8 @@ export function EmpleadosManager({ onShowToast }: EmpleadosManagerProps) {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
         <input
+          id="emp-search"
+          aria-label="Buscar operador"
           type="text"
           placeholder="Buscar por nombre, línea o labor…"
           value={search}
@@ -295,6 +297,8 @@ export function EmpleadosManager({ onShowToast }: EmpleadosManagerProps) {
                     <td className="px-4 py-3 whitespace-nowrap">
                       {isEditing ? (
                         <input
+                          id={`emp-edit-name-${emp.id}`}
+                          aria-label="Nombre del operador"
                           value={editForm.nombre}
                           onChange={(e) =>
                             setEditForm((f) => ({ ...f, nombre: e.target.value }))
@@ -313,6 +317,8 @@ export function EmpleadosManager({ onShowToast }: EmpleadosManagerProps) {
                     <td className="px-4 py-3 whitespace-nowrap">
                       {isEditing ? (
                         <input
+                          id={`emp-edit-linea-${emp.id}`}
+                          aria-label="Línea de proceso"
                           value={editForm.linea_proceso}
                           onChange={(e) =>
                             setEditForm((f) => ({
@@ -333,6 +339,8 @@ export function EmpleadosManager({ onShowToast }: EmpleadosManagerProps) {
                     <td className="px-4 py-3 whitespace-nowrap">
                       {isEditing ? (
                         <input
+                          id={`emp-edit-labor-${emp.id}`}
+                          aria-label="Labor"
                           value={editForm.labor}
                           onChange={(e) =>
                             setEditForm((f) => ({ ...f, labor: e.target.value }))
@@ -452,6 +460,8 @@ export function EmpleadosManager({ onShowToast }: EmpleadosManagerProps) {
                   <span>Nombre *</span>
                 </label>
                 <input
+                  id="emp-new-name"
+                  aria-label="Nombre del operador"
                   required
                   value={createForm.nombre}
                   onChange={(e) =>
@@ -467,6 +477,8 @@ export function EmpleadosManager({ onShowToast }: EmpleadosManagerProps) {
                   <span>Línea de Proceso *</span>
                 </label>
                 <input
+                  id="emp-new-linea"
+                  aria-label="Línea de proceso"
                   required
                   value={createForm.linea_proceso}
                   onChange={(e) =>
@@ -482,6 +494,8 @@ export function EmpleadosManager({ onShowToast }: EmpleadosManagerProps) {
                   <span>Labor *</span>
                 </label>
                 <input
+                  id="emp-new-labor"
+                  aria-label="Labor"
                   required
                   value={createForm.labor}
                   onChange={(e) =>

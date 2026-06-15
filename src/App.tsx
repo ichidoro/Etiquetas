@@ -578,6 +578,8 @@ export default function App() {
 
                   <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
                     <input
+                      id="file-upload"
+                      aria-label="Importar CSV/Excel"
                       type="file"
                       accept=".csv, .xlsx, .xls, .xlxs, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
                       className="hidden"
@@ -644,6 +646,7 @@ export default function App() {
                     </div>
                     <input
                       id="filter-search"
+                      aria-label="Buscar producto"
                       type="text"
                       placeholder="Buscar por SKU, nombre o marca..."
                       value={search}
@@ -657,6 +660,7 @@ export default function App() {
                     <div className="md:w-48">
                       <select
                         id="filter-business-line"
+                        aria-label="Filtrar por línea de negocio"
                         value={filterBusinessLine}
                         onChange={(e) => {
                           setFilterBusinessLine(e.target.value);
@@ -680,6 +684,7 @@ export default function App() {
                     <div className="md:w-48">
                       <select
                         id="filter-family"
+                        aria-label="Filtrar por familia"
                         value={filterFamily}
                         onChange={(e) => {
                           setFilterFamily(e.target.value);
@@ -702,6 +707,7 @@ export default function App() {
                     <div className="md:w-48">
                       <select
                         id="filter-marca"
+                        aria-label="Filtrar por marca"
                         value={filterMarca}
                         onChange={(e) => setFilterMarca(e.target.value)}
                         className="block w-full py-3 px-3 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white text-slate-800"
@@ -720,6 +726,7 @@ export default function App() {
                   <div className="md:w-40">
                     <select
                       id="filter-status"
+                      aria-label="Filtrar por estado"
                       value={filterStatus}
                       onChange={(e) => setFilterStatus(e.target.value)}
                       className="block w-full py-3 px-3 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white text-slate-800"
@@ -929,6 +936,8 @@ export default function App() {
                             Nombre del Formato
                         </h3>
                         <input
+                          id="format-name"
+                          aria-label="Nombre del formato"
                           type="text"
                           className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
                           value={labelFormat.name}
@@ -948,6 +957,8 @@ export default function App() {
                               Ancho (mm)
                             </label>
                             <input
+                              id="format-width"
+                              aria-label="Ancho en mm"
                               type="number"
                               className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
                               value={labelFormat.width}
@@ -963,6 +974,8 @@ export default function App() {
                               Alto (mm)
                             </label>
                             <input
+                              id="format-height"
+                              aria-label="Alto en mm"
                               type="number"
                               className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
                               value={labelFormat.height}
@@ -986,6 +999,8 @@ export default function App() {
                               Margen Izquierdo (mm)
                             </label>
                             <input
+                              id="format-margin-left"
+                              aria-label="Margen izquierdo"
                               type="number"
                               className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
                               value={labelFormat.marginLeft}
@@ -1001,6 +1016,8 @@ export default function App() {
                               Margen Derecho (mm)
                             </label>
                             <input
+                              id="format-margin-right"
+                              aria-label="Margen derecho"
                               type="number"
                               className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
                               value={labelFormat.marginRight}
@@ -1016,6 +1033,8 @@ export default function App() {
                               Margen Superior (mm)
                             </label>
                             <input
+                              id="format-margin-top"
+                              aria-label="Margen superior"
                               type="number"
                               className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
                               value={labelFormat.marginTop}
@@ -1031,6 +1050,8 @@ export default function App() {
                               Margen Inferior (mm)
                             </label>
                             <input
+                              id="format-margin-bottom"
+                              aria-label="Margen inferior"
                               type="number"
                               className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
                               value={labelFormat.marginBottom}
@@ -1048,6 +1069,8 @@ export default function App() {
                               Conteo Horizontal
                             </label>
                             <input
+                              id="format-labels-row"
+                              aria-label="Etiquetas por fila"
                               type="number"
                               min="1"
                               max="10"
@@ -1065,6 +1088,8 @@ export default function App() {
                               Espacio Horizontal (mm)
                             </label>
                             <input
+                              id="format-h-gap"
+                              aria-label="Separación horizontal"
                               type="number"
                               min="0"
                               step="0.5"
@@ -1082,6 +1107,8 @@ export default function App() {
                               Conteo Vertical
                             </label>
                             <input
+                              id="format-labels-col"
+                              aria-label="Etiquetas por columna"
                               type="number"
                               min="1"
                               max="10"
@@ -1099,6 +1126,8 @@ export default function App() {
                               Separación Vertical (mm)
                             </label>
                             <input
+                              id="format-v-gap"
+                              aria-label="Separación vertical"
                               type="number"
                               min="0"
                               step="0.5"
@@ -1124,6 +1153,8 @@ export default function App() {
                               DPI (Resolución)
                             </label>
                             <select
+                              id="format-dpi"
+                              aria-label="Resolución DPI"
                               className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border bg-white"
                               value={labelFormat.dpi}
                               onChange={(e) =>
@@ -1143,6 +1174,8 @@ export default function App() {
                               Oscuridad (~SD)
                             </label>
                             <input
+                              id="format-darkness"
+                              aria-label="Oscuridad"
                               type="number"
                               min="0"
                               max="30"
@@ -1160,6 +1193,8 @@ export default function App() {
                               Velocidad (^PR)
                             </label>
                             <input
+                              id="format-speed"
+                              aria-label="Velocidad de impresión"
                               type="number"
                               min="1"
                               max="6"
@@ -1177,6 +1212,8 @@ export default function App() {
                               Orientación
                             </label>
                             <select
+                              id="format-orientation"
+                              aria-label="Orientación"
                               className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border bg-white"
                               value={labelFormat.orientation}
                               onChange={(e) =>
@@ -1198,6 +1235,8 @@ export default function App() {
                               Ajuste Horizontal ^LS (mm)
                             </label>
                             <input
+                              id="format-h-shift"
+                              aria-label="Desplazamiento horizontal"
                               type="number"
                               step="0.5"
                               className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
@@ -1215,6 +1254,8 @@ export default function App() {
                               Ajuste Vertical ^LT (mm)
                             </label>
                             <input
+                              id="format-v-shift"
+                              aria-label="Desplazamiento vertical"
                               type="number"
                               step="0.5"
                               className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
@@ -1239,6 +1280,8 @@ export default function App() {
                         <div className="space-y-3 bg-slate-50 p-4 rounded border border-slate-200">
                           <label className="flex items-center space-x-3">
                             <input
+                              id="format-show-name"
+                              aria-label="Mostrar nombre"
                               type="checkbox"
                               className="rounded text-blue-600 focus:ring-blue-500"
                               checked={labelFormat.showName}
@@ -1254,6 +1297,8 @@ export default function App() {
                           </label>
                           <label className="flex items-center space-x-3">
                             <input
+                              id="format-show-sku"
+                              aria-label="Mostrar SKU"
                               type="checkbox"
                               className="rounded text-blue-600 focus:ring-blue-500"
                               checked={labelFormat.showSku}
@@ -1269,6 +1314,8 @@ export default function App() {
                           </label>
                           <label className="flex items-center space-x-3">
                             <input
+                              id="format-show-ean"
+                              aria-label="Mostrar EAN-13"
                               type="checkbox"
                               className="rounded text-blue-600 focus:ring-blue-500"
                               checked={labelFormat.showEan13}
@@ -1284,6 +1331,8 @@ export default function App() {
                           </label>
                           <label className="flex items-center space-x-3">
                             <input
+                              id="format-show-dun"
+                              aria-label="Mostrar DUN-14"
                               type="checkbox"
                               className="rounded text-blue-600 focus:ring-blue-500"
                               checked={labelFormat.showDun14}
