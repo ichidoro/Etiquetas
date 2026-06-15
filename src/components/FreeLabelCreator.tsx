@@ -160,6 +160,8 @@ function generateFreeZpl(
   // ── Single ^XA..^XZ block with all rows and columns ──
   let zpl = "^XA\n";
   zpl += "^CI28\n"; // UTF-8 encoding (ñ, á, é, etc.)
+  zpl += "^MNN\n"; // Continuous media — forces printer to use our ^LL value
+  zpl += "^LH0,0\n"; // Label home at origin
   zpl += `^PW${totalPw}\n`;
   zpl += `^LL${ll}\n`;
   zpl += `~SD${format.darkness}\n`;
@@ -168,6 +170,9 @@ function generateFreeZpl(
   if (shiftDots !== 0) zpl += `^LS${shiftDots}\n`;
   const topDots = Math.round((format.labelTop || 0) * dpmm);
   if (topDots !== 0) zpl += `^LT${topDots}\n`;
+
+  console.log(`[FreeLabel ZPL] Format: ${format.name}, W=${format.width}mm, H=${format.height}mm, ` +
+    `DPI=${dpi}, labelH=${labelH}dots, ll=${ll}dots, rows=${rows}, cols=${cols}`);
 
   for (let row = 0; row < rows; row++) {
     const rowOffsetY = row * (labelH + vGapDots);
