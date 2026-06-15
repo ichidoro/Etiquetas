@@ -166,10 +166,10 @@ function generateFreeZpl(
   zpl += `^LL${ll}\n`;
   zpl += `~SD${format.darkness}\n`;
   zpl += `^PR${format.printSpeed}\n`;
-  const shiftDots = Math.round((format.labelShift || 0) * dpmm);
-  if (shiftDots !== 0) zpl += `^LS${shiftDots}\n`;
-  const topDots = Math.round((format.labelTop || 0) * dpmm);
-  if (topDots !== 0) zpl += `^LT${topDots}\n`;
+  // NOTE: ^LS (labelShift) and ^LT (labelTop) are NOT applied here.
+  // Those are calibration offsets for the barcode module's predefined positions.
+  // In the free designer, elements are already positioned exactly where the user
+  // placed them — applying ^LS/^LT would shift them outside the printable area.
 
   console.log(`[FreeLabel ZPL] Format: ${format.name}, W=${format.width}mm, H=${format.height}mm, ` +
     `DPI=${dpi}, labelH=${labelH}dots, ll=${ll}dots, rows=${rows}, cols=${cols}`);
