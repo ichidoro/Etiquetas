@@ -566,7 +566,7 @@ export default function App() {
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                   <div>
                     <h1 className="text-2xl font-bold tracking-tight text-slate-800">
-                      Mantenedor de Productos y Códigos Turso
+                      Mantenedor de Productos y Códigos
                     </h1>
                     <p className="text-sm text-slate-500 mt-1">
                       Gestiona SKUs, genera códigos de barra (EAN13, DUN14) e
@@ -1703,7 +1703,7 @@ timeout /t 15
                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                       <h4 className="text-sm font-bold text-amber-800 mb-1">💡 ¿Cómo funciona?</h4>
                       <ul className="text-xs text-amber-700 space-y-1">
-                        <li>• <strong>Datos compartidos:</strong> Todos los PCs se conectan a la misma base de datos Turso Cloud</li>
+                        <li>• <strong>Datos compartidos:</strong> Todos los PCs se conectan a la misma base de datos en la nube</li>
                         <li>• <strong>Impresión local:</strong> Cada PC detecta sus propias impresoras y envía ZPL directamente</li>
                         <li>• <strong>Sin conflictos:</strong> Los productos, operadores y formatos se sincronizan en tiempo real</li>
                         <li>• <strong>Invisible:</strong> El servidor corre en segundo plano, el usuario no ve ninguna terminal</li>
