@@ -12,6 +12,11 @@
 const LOCAL_SERVER_URL = "http://localhost:3000";
 const PING_TIMEOUT = 5000;
 
+/** Fetch wrapper for local network requests — adds targetAddressSpace to suppress Chrome warnings */
+function localFetch(url: string, opts: RequestInit = {}): Promise<Response> {
+  return fetch(url, { ...opts, targetAddressSpace: 'local' } as RequestInit);
+}
+
 /** Check if we're running on Cloud (not localhost) */
 export function isRunningOnCloud(): boolean {
   const host = window.location.hostname;
@@ -23,7 +28,7 @@ async function pingBridge(baseUrl: string): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), PING_TIMEOUT);
-    const res = await fetch(`${baseUrl}/health`, { signal: controller.signal });
+    const res = await localFetch(`${baseUrl}/health`, { signal: controller.signal });
     clearTimeout(timeout);
     return res.ok;
   } catch {
@@ -126,7 +131,7 @@ export async function fetchPrinters(
       console.log("[PrintBridge] Error fetching bridges:", err);
       // Fallback: try local bridge directly
       try {
-        const res = await fetch(`${bridgeUrl}/api/system-printers`);
+        const res = await localFetch(`${bridgeUrl}/api/system-printers`);
         if (res.ok) {
           const printers = await res.json();
           return printers;
@@ -180,7 +185,7 @@ export async function fetchPrinters(
   const baseUrl = useLocalBridge ? LOCAL_SERVER_URL : "";
   try {
     console.log(`[PrintBridge] Fetching printers from: ${baseUrl || "(same origin)"}`);
-    const res = await fetch(`${baseUrl}/api/system-printers`);
+    const res = await (baseUrl ? localFetch : fetch)(`${baseUrl}/api/system-printers`);
     if (!res.ok) return [];
     const printers = await res.json();
     console.log(`[PrintBridge] Found ${printers.length} printers`);
@@ -293,7 +298,8 @@ export async function sendPrintJob(
 
   try {
     console.log(`[PrintBridge] Sending print job to: ${baseUrl || "(same origin)"} → ${printerName}`);
-    const res = await fetch(`${baseUrl}/api/print/usb`, {
+    const fetchFn = baseUrl ? localFetch : fetch;
+    const res = await fetchFn(`${baseUrl}/api/print/usb`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ zpl, printerName }),
