@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server/server.ts",
-    "build": "vite build && esbuild server/server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build": "vite build --config config/vite.config.ts && esbuild server/server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --tsconfig=config/tsconfig.json --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
-    "preview": "vite preview",
+    "preview": "vite preview --config config/vite.config.ts",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --project config/tsconfig.json --noEmit"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
