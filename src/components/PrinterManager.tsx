@@ -11,6 +11,8 @@ interface SystemPrinter {
   PortName: string;
   DriverName: string;
   PrinterStatus: number;
+  _bridgeId?: string;
+  _bridgeHost?: string;
 }
 
 interface PrinterManagerProps {
@@ -298,6 +300,15 @@ export function PrinterManager({ onShowToast }: PrinterManagerProps) {
                           {isZebra && (
                             <span className="px-1.5 py-0.5 text-[10px] font-bold bg-violet-100 text-violet-700 rounded">
                               ZEBRA
+                            </span>
+                          )}
+                          {p._bridgeHost && p._bridgeHost !== 'Este PC' ? (
+                            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700 rounded">
+                              {p._bridgeHost}
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-500 rounded">
+                              Este PC
                             </span>
                           )}
                           {isDefault && (

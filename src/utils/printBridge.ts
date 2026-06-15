@@ -111,7 +111,6 @@ export async function fetchPrinters(
     }
 
     // Also fetch remote printers from cloud bridges
-    const localNames = new Set(localPrinters.map(p => p.Name));
     try {
       const bridges = await getAllBridges();
       printerToBridge = new Map();
@@ -119,16 +118,14 @@ export async function fetchPrinters(
         if (!bridge.printers || bridge.printers.length === 0) continue;
         for (const p of bridge.printers) {
           printerToBridge.set(p.Name, bridge.id);
-          if (!localNames.has(p.Name)) {
-            localNames.add(p.Name);
-            localPrinters.push({
-              Name: p.Name,
-              PortName: `via ${bridge.hostname}`,
-              DriverName: p.DriverName || "",
-              _bridgeId: bridge.id,
-              _bridgeHost: bridge.hostname,
-            });
-          }
+          // Always add remote printers (even if same name exists locally)
+          localPrinters.push({
+            Name: p.Name,
+            PortName: `via ${bridge.hostname}`,
+            DriverName: p.DriverName || "",
+            _bridgeId: bridge.id,
+            _bridgeHost: bridge.hostname,
+          });
         }
       }
     } catch {}
