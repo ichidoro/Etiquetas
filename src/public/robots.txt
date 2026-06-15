@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /api/
+Allow: /
+
+Sitemap: https://zebra-bridge-pro-684852789183.us-central1.run.app/sitemap.xml
