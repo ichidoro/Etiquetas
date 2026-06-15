@@ -1,8 +1,0 @@
-{
-  "name": "Generador de Códigos Zebra y Turso",
-  "description": "Mantenedor maestro de productos con integración a base de datos externa tipo Turso y generación de Códigos de Barra ZPL para impresoras Zebra (EAN 13 / DUN 14).",
-  "requestFramePermissions": [
-    "usb"
-  ],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
