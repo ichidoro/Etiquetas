@@ -67,6 +67,7 @@ export function generateZpl(
   dun14?: string,
   format: LabelFormat = defaultLabelFormat,
   customPositions?: ElementPosition[],
+  totalLabels?: number,
 ): string {
   const dpmm = format.dpi === 300 ? 12 : 8;
 
@@ -86,111 +87,117 @@ export function generateZpl(
   const ll = verticalCount * labelHeightDots +
     Math.max(0, verticalCount - 1) * verticalGapDots;
 
-  let zpl = "^XA\n";
-  zpl += `^PW${totalPw}\n`;
-  zpl += `^LL${ll}\n`;
-  zpl += `~SD${format.darkness}\n`;
-  zpl += `^PR${format.printSpeed}\n`;
-  // Label shift (horizontal offset correction for printer alignment)
-  const shiftDots = Math.round((format.labelShift || 0) * dpmm);
-  if (shiftDots !== 0) zpl += `^LS${shiftDots}\n`;
-  // Label top (vertical offset correction)
-  const topDots = Math.round((format.labelTop || 0) * dpmm);
-  if (topDots !== 0) zpl += `^LT${topDots}\n`;
-
-  // Font defaults (can be overridden per element)
-  const defaultFontHmm = 3;
-  const defaultFontWmm = 2.5;
-
   const orientation = format.orientation;
+  const horizontalCount = format.labelsPerRow || 1;
 
   // Calculate positions
   const positions = customPositions || calculateDefaultPositions(
     format,
     { sku, item_name: itemName, ean13, dun14 },
   );
-
   const posMap = new Map<string, ElementPosition>();
   for (const p of positions) posMap.set(p.id, p);
 
-  const horizontalCount = format.labelsPerRow || 1;
+  // Font defaults
+  const defaultFontHmm = 3;
 
-  for (let row = 0; row < verticalCount; row++) {
-    for (let col = 0; col < horizontalCount; col++) {
-      // Each label cell: center the grid within PW, then offset by column
-      const colOffsetX = marginLeftDots + col * (labelWidthDots + gapDots);
-      const rowOffsetY = row * (labelHeightDots + verticalGapDots);
+  // How many labels per "page" (one ZPL ^XA..^XZ block)
+  const labelsPerPage = horizontalCount * verticalCount;
 
-      // Name — centered with ^FB field block across label width
-      if (format.showName && itemName && posMap.has('name')) {
-        const pos = posMap.get('name')!;
-        const fsMm = pos.fontSize || defaultFontHmm;
-        const fontH = Math.round(fsMm * dpmm);
-        const fontW = Math.round((fsMm * 0.8) * dpmm);
-        const y = rowOffsetY + Math.round(pos.y * dpmm);
-        const xOffset = Math.round(pos.x * dpmm);
-        // Center text within the label cell width
-        zpl += `^FO${Math.max(0, colOffsetX + xOffset)},${y}^FB${labelWidthDots},1,0,C,0^A0${orientation},${fontH},${fontW}^FD${itemName.substring(0, 40)}^FS\n`;
-      }
+  // If totalLabels is specified, generate exact count across multiple pages
+  const total = totalLabels || labelsPerPage; // default = fill one full page
+  const numPages = Math.ceil(total / labelsPerPage);
 
-      // SKU (Code 128) — centered or custom X
-      if (format.showSku && sku && posMap.has('sku')) {
-        const pos = posMap.get('sku')!;
-        const bHeight = Math.round(pos.h * dpmm);
-        const y = rowOffsetY + Math.round(pos.y * dpmm);
-        let x: number;
-        if (pos.x !== 0) {
-          x = colOffsetX + Math.round(pos.x * dpmm);
-        } else {
-          const approxBarcodeWidth = Math.min(sku.length * 22 + 40, labelWidthDots);
-          x = colOffsetX + Math.round((labelWidthDots - approxBarcodeWidth) / 2);
+  let fullZpl = "";
+  let labelsGenerated = 0;
+
+  for (let page = 0; page < numPages; page++) {
+    let zpl = "^XA\n";
+    zpl += `^PW${totalPw}\n`;
+    zpl += `^LL${ll}\n`;
+    zpl += `~SD${format.darkness}\n`;
+    zpl += `^PR${format.printSpeed}\n`;
+    const shiftDots = Math.round((format.labelShift || 0) * dpmm);
+    if (shiftDots !== 0) zpl += `^LS${shiftDots}\n`;
+    const topDots = Math.round((format.labelTop || 0) * dpmm);
+    if (topDots !== 0) zpl += `^LT${topDots}\n`;
+
+    for (let row = 0; row < verticalCount; row++) {
+      for (let col = 0; col < horizontalCount; col++) {
+        if (labelsGenerated >= total) break; // stop when we have enough
+
+        const colOffsetX = marginLeftDots + col * (labelWidthDots + gapDots);
+        const rowOffsetY = row * (labelHeightDots + verticalGapDots);
+
+        // Name
+        if (format.showName && itemName && posMap.has('name')) {
+          const pos = posMap.get('name')!;
+          const fsMm = pos.fontSize || defaultFontHmm;
+          const fontH = Math.round(fsMm * dpmm);
+          const fontW = Math.round((fsMm * 0.8) * dpmm);
+          const y = rowOffsetY + Math.round(pos.y * dpmm);
+          const xOffset = Math.round(pos.x * dpmm);
+          zpl += `^FO${Math.max(0, colOffsetX + xOffset)},${y}^FB${labelWidthDots},1,0,C,0^A0${orientation},${fontH},${fontW}^FD${itemName.substring(0, 40)}^FS\n`;
         }
-        zpl += `^FO${Math.max(0, x)},${y}^BC${orientation},${bHeight},Y,N,N^FD${sku}^FS\n`;
-      }
 
-      // EAN13 — centered or custom X
-      // IMPORTANT: EAN-13 renders its first digit ~18 dots LEFT of the ^FO position.
-      // So we must offset the FO position rightward to keep the first digit visible.
-      if (format.showEan13 && ean13 && posMap.has('ean13')) {
-        const pos = posMap.get('ean13')!;
-        const bHeight = Math.round(pos.h * dpmm);
-        const y = rowOffsetY + Math.round(pos.y * dpmm);
-        const firstDigitOffset = 18; // dots the first digit extends left of ^FO
-        let x: number;
-        if (pos.x !== 0) {
-          x = colOffsetX + Math.round(pos.x * dpmm);
-        } else {
-          // Total visual width = bars(190) + first digit(18) = 208
-          const totalVisualWidth = 190 + firstDigitOffset;
-          // Center the total visual width within the label
-          const leftPadding = Math.round((labelWidthDots - totalVisualWidth) / 2);
-          // FO = labelStart + leftPadding + firstDigitOffset (so first digit lands at leftPadding)
-          x = colOffsetX + leftPadding + firstDigitOffset;
+        // SKU (Code 128)
+        if (format.showSku && sku && posMap.has('sku')) {
+          const pos = posMap.get('sku')!;
+          const bHeight = Math.round(pos.h * dpmm);
+          const y = rowOffsetY + Math.round(pos.y * dpmm);
+          let x: number;
+          if (pos.x !== 0) {
+            x = colOffsetX + Math.round(pos.x * dpmm);
+          } else {
+            const approxBarcodeWidth = Math.min(sku.length * 22 + 40, labelWidthDots);
+            x = colOffsetX + Math.round((labelWidthDots - approxBarcodeWidth) / 2);
+          }
+          zpl += `^FO${Math.max(0, x)},${y}^BC${orientation},${bHeight},Y,N,N^FD${sku}^FS\n`;
         }
-        // Ensure first digit doesn't go off the left edge
-        zpl += `^FO${Math.max(firstDigitOffset, x)},${y}^BE${orientation},${bHeight},Y,N^FD${ean13}^FS\n`;
-      }
 
-      // DUN14 — centered or custom X
-      if (format.showDun14 && dun14 && posMap.has('dun14')) {
-        const pos = posMap.get('dun14')!;
-        const bHeight = Math.round(pos.h * dpmm);
-        const y = rowOffsetY + Math.round(pos.y * dpmm);
-        let x: number;
-        if (pos.x !== 0) {
-          x = colOffsetX + Math.round(pos.x * dpmm);
-        } else {
-          const approxBarcodeWidth = Math.min(dun14.length * 18 + 40, labelWidthDots);
-          x = colOffsetX + Math.round((labelWidthDots - approxBarcodeWidth) / 2);
+        // EAN13
+        if (format.showEan13 && ean13 && posMap.has('ean13')) {
+          const pos = posMap.get('ean13')!;
+          const bHeight = Math.round(pos.h * dpmm);
+          const y = rowOffsetY + Math.round(pos.y * dpmm);
+          const firstDigitOffset = 18;
+          let x: number;
+          if (pos.x !== 0) {
+            x = colOffsetX + Math.round(pos.x * dpmm);
+          } else {
+            const totalVisualWidth = 190 + firstDigitOffset;
+            const leftPadding = Math.round((labelWidthDots - totalVisualWidth) / 2);
+            x = colOffsetX + leftPadding + firstDigitOffset;
+          }
+          zpl += `^FO${Math.max(firstDigitOffset, x)},${y}^BE${orientation},${bHeight},Y,N^FD${ean13}^FS\n`;
         }
-        zpl += `^FO${Math.max(0, x)},${y}^B2${orientation},${bHeight},Y,N,N^FD${dun14}^FS\n`;
+
+        // DUN14
+        if (format.showDun14 && dun14 && posMap.has('dun14')) {
+          const pos = posMap.get('dun14')!;
+          const bHeight = Math.round(pos.h * dpmm);
+          const y = rowOffsetY + Math.round(pos.y * dpmm);
+          let x: number;
+          if (pos.x !== 0) {
+            x = colOffsetX + Math.round(pos.x * dpmm);
+          } else {
+            const approxBarcodeWidth = Math.min(dun14.length * 18 + 40, labelWidthDots);
+            x = colOffsetX + Math.round((labelWidthDots - approxBarcodeWidth) / 2);
+          }
+          zpl += `^FO${Math.max(0, x)},${y}^B2${orientation},${bHeight},Y,N,N^FD${dun14}^FS\n`;
+        }
+
+        labelsGenerated++;
       }
+      if (labelsGenerated >= total) break;
     }
+
+    zpl += "^PQ1,0,1,Y\n";
+    zpl += "^XZ\n";
+    fullZpl += zpl;
   }
 
-  zpl += "^PQ1,0,1,Y\n";
-  zpl += "^XZ\n";
-  return zpl;
+  return fullZpl;
 }
 
 /**

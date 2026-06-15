@@ -210,8 +210,8 @@ export function PrintModal({
     product.dun14,
     currentFormat,
     elementPositions,
+    quantity,
   );
-  zplCode = zplCode.replace("^PQ1,0,1,Y", `^PQ${quantity},0,1,Y`);
 
   const handleCopyZpl = () => {
     navigator.clipboard.writeText(zplCode);
@@ -439,7 +439,7 @@ export function PrintModal({
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Copias</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Etiquetas</label>
                   <input
                     type="number" min="1" max="999"
                     value={quantity}
