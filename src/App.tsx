@@ -29,6 +29,7 @@ import { TracePrintModal } from "./components/TracePrintModal";
 import { LabelPreview } from "./components/LabelPreview";
 import { EmpleadosManager } from "./components/EmpleadosManager";
 import { SystemConsole } from "./components/SystemConsole";
+import { PrintHistory } from "./components/PrintHistory";
 import { PrinterManager } from "./components/PrinterManager";
 import { FreeLabelCreator } from "./components/FreeLabelCreator";
 
@@ -1314,21 +1315,7 @@ export default function App() {
             )}
 
             {currentView === "historial" && (
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 sm:p-8">
-                <h2 className="text-xl font-bold text-slate-800 mb-4">
-                  Historial de Impresión (Próximamente)
-                </h2>
-                <p className="text-slate-500 mb-6">
-                  Aquí verás un registro histórico de todas las impresiones
-                  enviadas desde la plataforma hacia tus impresoras locales
-                  emparejadas por USB, con fecha, hora, y la identificación del
-                  dispositivo.
-                </p>
-                <div className="border-2 border-dashed border-slate-200 rounded-xl p-12 text-center text-slate-400">
-                  <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  Módulo en desarrollo
-                </div>
-              </div>
+              <PrintHistory />
             )}
 
             {currentView === "configuracion" && (

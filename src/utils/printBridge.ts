@@ -160,6 +160,24 @@ export async function fetchPrinters(
   }
 }
 
+/** Record a print job in history (fire-and-forget) */
+export function recordPrint(opts: {
+  productName?: string;
+  productSku?: string;
+  printerName: string;
+  mode: 'local' | 'cloud';
+  copies?: number;
+  status: 'success' | 'error';
+  bridgeId?: string;
+  details?: string;
+}) {
+  fetch("/api/print-history", {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(opts),
+  }).catch(() => {}); // fire-and-forget
+}
+
 /** Send ZPL to printer — via direct bridge or cloud queue */
 export async function sendPrintJob(
   zpl: string,

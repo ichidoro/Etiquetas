@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { X, Printer, Download, Copy, Check, Code, Minus, Plus, Calendar, Move, RotateCcw, Save, User, Settings2, Usb, Wifi, WifiOff } from "lucide-react";
 import { Product, LabelFormat } from "../types";
 import { isWebUSBSupported, getAlreadyPairedPrinters, requestUSBPrinter, sendZPLviaUSB, forgetUSBPrinter } from "../utils/webusb";
-import { isRunningOnCloud, discoverBridgeUrl, fetchPrinters, sendPrintJob } from "../utils/printBridge";
+import { isRunningOnCloud, discoverBridgeUrl, fetchPrinters, sendPrintJob, recordPrint } from "../utils/printBridge";
 
 // ─── localStorage helpers ───────────────────────────────────────────────────
 const PRINTER_STORAGE_KEY = "zebra-default-printer";
@@ -520,6 +520,15 @@ export function TracePrintModal({
       if (!selectedSystemPrinter) { onShowToast?.("Selecciona una impresora", "error"); return; }
       setUsbPrinting(true);
       const result = await sendPrintJob(zplCode, selectedSystemPrinter, localBridgeAvailable, bridgeUrl);
+      recordPrint({
+        productName: product.item_name,
+        productSku: product.sku,
+        printerName: selectedSystemPrinter,
+        mode: bridgeUrl === 'CLOUD_QUEUE' ? 'cloud' : 'local',
+        copies: 1,
+        status: result.ok ? 'success' : 'error',
+        details: result.ok ? undefined : result.message,
+      });
       if (result.ok) onShowToast?.(`✅ ${result.message}`, "success");
       else onShowToast?.(result.message, "error");
       setUsbPrinting(false);

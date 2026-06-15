@@ -5,7 +5,7 @@ import {
   GripVertical, Copy, Check, Code, Move, X,
 } from "lucide-react";
 import { LabelFormat } from "../types";
-import { isRunningOnCloud, discoverBridgeUrl, fetchPrinters, sendPrintJob } from "../utils/printBridge";
+import { isRunningOnCloud, discoverBridgeUrl, fetchPrinters, sendPrintJob, recordPrint } from "../utils/printBridge";
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 interface LabelElement {
@@ -650,6 +650,14 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
     setUsbPrinting(true);
     try {
       const result = await sendPrintJob(zplCode, selectedSystemPrinter, localBridgeAvailable, bridgeUrl);
+      recordPrint({
+        productName: "Etiqueta libre",
+        printerName: selectedSystemPrinter,
+        mode: bridgeUrl === 'CLOUD_QUEUE' ? 'cloud' : 'local',
+        copies: 1,
+        status: result.ok ? 'success' : 'error',
+        details: result.ok ? undefined : result.message,
+      });
       if (result.ok) onShowToast?.(`✅ ${result.message}`, "success");
       else onShowToast?.(result.message || "Error de impresión", "error");
     } catch (e: any) {

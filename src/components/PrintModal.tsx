@@ -4,7 +4,7 @@ import { Product, LabelFormat, ElementPosition, SavedLabelLayout } from "../type
 import { DraggableLabelPreview } from "./DraggableLabelPreview";
 import { generateZpl, calculateDefaultPositions, generateCalibrationZpl } from "../utils/zebra";
 import { isWebUSBSupported, getAlreadyPairedPrinters, requestUSBPrinter, sendZPLviaUSB, forgetUSBPrinter } from "../utils/webusb";
-import { isRunningOnCloud, discoverBridgeUrl, fetchPrinters, sendPrintJob } from "../utils/printBridge";
+import { isRunningOnCloud, discoverBridgeUrl, fetchPrinters, sendPrintJob, recordPrint } from "../utils/printBridge";
 
 // localStorage keys
 const LAYOUT_STORAGE_KEY = 'zebra-label-layout';
@@ -246,6 +246,15 @@ export function PrintModal({
       if (!selectedSystemPrinter) { onShowToast?.('Selecciona una impresora del sistema', 'error'); return; }
       setUsbPrinting(true);
       const result = await sendPrintJob(zplCode, selectedSystemPrinter, localBridgeAvailable, bridgeUrl);
+      recordPrint({
+        productName: product.item_name,
+        productSku: product.sku,
+        printerName: selectedSystemPrinter,
+        mode: bridgeUrl === 'CLOUD_QUEUE' ? 'cloud' : 'local',
+        copies: copies,
+        status: result.ok ? 'success' : 'error',
+        details: result.ok ? undefined : result.message,
+      });
       if (result.ok) onShowToast?.(`✅ ${result.message}`, 'success');
       else onShowToast?.(result.message, 'error');
       setUsbPrinting(false);

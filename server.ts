@@ -200,6 +200,22 @@ async function initDb() {
     )`);
   } catch {}
 
+  // Table: print_history (track all print jobs)
+  try {
+    await db.execute(`CREATE TABLE IF NOT EXISTS print_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+      productName TEXT,
+      productSku TEXT,
+      printerName TEXT NOT NULL,
+      mode TEXT NOT NULL DEFAULT 'local',
+      copies INTEGER NOT NULL DEFAULT 1,
+      status TEXT NOT NULL DEFAULT 'success',
+      bridgeId TEXT,
+      details TEXT
+    )`);
+  } catch {}
+
   // Seed label formats only if empty (preserves cloud data)
   try {
     const formatsResult = await db.execute(
@@ -264,6 +280,42 @@ app.get("/api/logs", async (req, res) => {
 app.delete("/api/logs", async (_req, res) => {
   try {
     await db.execute("DELETE FROM system_logs");
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// API: Print History
+app.get("/api/print-history", async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 200;
+    const result = await db.execute({
+      sql: "SELECT * FROM print_history ORDER BY id DESC LIMIT ?",
+      args: [limit],
+    });
+    res.json(result.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/print-history", async (req, res) => {
+  try {
+    const { productName, productSku, printerName, mode, copies, status, bridgeId, details } = req.body;
+    await db.execute({
+      sql: "INSERT INTO print_history (productName, productSku, printerName, mode, copies, status, bridgeId, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      args: [productName || null, productSku || null, printerName, mode || 'local', copies || 1, status || 'success', bridgeId || null, details || null],
+    });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/print-history", async (_req, res) => {
+  try {
+    await db.execute("DELETE FROM print_history");
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
