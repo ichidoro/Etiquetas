@@ -745,7 +745,7 @@ export default function App() {
                 </div>
 
                 {/* Table Content */}
-                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
+                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col min-h-[400px]">
                   <div className="overflow-x-auto w-full">
                     <table className="w-full divide-y divide-slate-200">
                       <thead className="bg-slate-50">
