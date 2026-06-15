@@ -47,21 +47,15 @@ export async function isLocalServerAvailable(): Promise<boolean> {
   return pingBridge(LOCAL_SERVER_URL);
 }
 
-/** Discover bridge URL — tries localhost first, then returns cloud queue info */
+/** Discover bridge URL — on cloud always use cloud queue for smart routing */
 export async function discoverBridgeUrl(): Promise<string | null> {
   if (!isRunningOnCloud()) {
     return null; // Use normal API (same origin)
   }
 
-  // 1. Try localhost first (bridge on same PC)
-  console.log("[PrintBridge] Trying localhost...");
-  if (await pingBridge(LOCAL_SERVER_URL)) {
-    console.log("[PrintBridge] ✅ Local bridge found at localhost");
-    return LOCAL_SERVER_URL;
-  }
-
-  // 2. No direct bridge available — will use cloud queue
-  console.log("[PrintBridge] No direct bridge, will use cloud print queue");
+  // Always use cloud queue when on cloud — it routes to the correct bridge
+  // based on which bridge actually has the selected printer
+  console.log("[PrintBridge] Cloud mode → using cloud print queue for smart routing");
   return "CLOUD_QUEUE";
 }
 
