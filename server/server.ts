@@ -537,7 +537,7 @@ app.patch("/api/print-queue/:jobId", async (req, res) => {
 
 // Download Bridge file — used by the installer BAT
 app.get("/api/download-bridge", (req, res) => {
-  const bridgePath = path.join(process.cwd(), "print-bridge.mjs");
+  const bridgePath = path.join(process.cwd(), "bridge", "print-bridge.mjs");
   if (fs.existsSync(bridgePath)) {
     res.setHeader("Content-Type", "application/javascript");
     res.setHeader("Content-Disposition", "attachment; filename=print-bridge.mjs");
@@ -904,7 +904,7 @@ app.post('/api/print/usb', async (req, res) => {
   const tempFile = path.join(os.tmpdir(), `zebra_label_${Date.now()}.zpl`);
   fs.writeFileSync(tempFile, zpl, 'utf-8');
 
-  const scriptPath = path.join(process.cwd(), 'scripts', 'raw-print.ps1');
+  const scriptPath = path.join(process.cwd(), 'bridge', 'scripts', 'raw-print.ps1');
   const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -PrinterName "${printerName.replace(/"/g, '\`"')}" -FilePath "${tempFile}"`;
 
   exec(cmd, { timeout: 10000 }, (err, stdout, stderr) => {
@@ -1145,7 +1145,7 @@ function startBridgeServices() {
           const tempFile = path.join(os.tmpdir(), `zpl_queue_${Date.now()}.txt`);
           fs.writeFileSync(tempFile, zpl, 'utf-8');
 
-          const scriptPath = path.join(process.cwd(), 'scripts', 'raw-print.ps1');
+          const scriptPath = path.join(process.cwd(), 'bridge', 'scripts', 'raw-print.ps1');
           const safeName = printerName.replace(/"/g, '`"');
           await new Promise<void>((resolve, reject) => {
             exec(`powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -PrinterName "${safeName}" -FilePath "${tempFile}"`,
