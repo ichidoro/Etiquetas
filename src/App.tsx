@@ -643,6 +643,7 @@ export default function App() {
                       <Search className="h-5 w-5 text-slate-400" />
                     </div>
                     <input
+                      id="filter-search"
                       type="text"
                       placeholder="Buscar por SKU, nombre o marca..."
                       value={search}
@@ -655,6 +656,7 @@ export default function App() {
                   {businessLines.length > 0 && (
                     <div className="md:w-48">
                       <select
+                        id="filter-business-line"
                         value={filterBusinessLine}
                         onChange={(e) => {
                           setFilterBusinessLine(e.target.value);
@@ -677,6 +679,7 @@ export default function App() {
                   {families.length > 0 && (
                     <div className="md:w-48">
                       <select
+                        id="filter-family"
                         value={filterFamily}
                         onChange={(e) => {
                           setFilterFamily(e.target.value);
@@ -698,6 +701,7 @@ export default function App() {
                   {marcas.length > 0 && (
                     <div className="md:w-48">
                       <select
+                        id="filter-marca"
                         value={filterMarca}
                         onChange={(e) => setFilterMarca(e.target.value)}
                         className="block w-full py-3 px-3 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white text-slate-800"
@@ -715,6 +719,7 @@ export default function App() {
                   {/* Filter: Status */}
                   <div className="md:w-40">
                     <select
+                      id="filter-status"
                       value={filterStatus}
                       onChange={(e) => setFilterStatus(e.target.value)}
                       className="block w-full py-3 px-3 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white text-slate-800"
