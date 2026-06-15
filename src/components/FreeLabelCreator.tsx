@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import {
   Type, Calendar, Minus, Hash, Plus, Trash2, Save, FolderOpen,
   Printer, Download, AlignLeft, AlignCenter, AlignRight, Bold,
-  GripVertical, Copy, Check, Code, Move, X,
+  GripVertical, Copy, Check, Code, Move, X, Ruler,
 } from "lucide-react";
 import { LabelFormat } from "../types";
 import { isRunningOnCloud, discoverBridgeUrl, fetchPrinters, sendPrintJob, recordPrint } from "../utils/printBridge";
@@ -166,13 +166,13 @@ function generateFreeZpl(
   zpl += `^LL${ll}\n`;
   zpl += `~SD${format.darkness}\n`;
   zpl += `^PR${format.printSpeed}\n`;
-  // NOTE: ^LS (labelShift) and ^LT (labelTop) are NOT applied here.
-  // Those are calibration offsets for the barcode module's predefined positions.
-  // In the free designer, elements are already positioned exactly where the user
-  // placed them — applying ^LS/^LT would shift them outside the printable area.
+  const shiftDots = Math.round((format.labelShift || 0) * dpmm);
+  if (shiftDots !== 0) zpl += `^LS${shiftDots}\n`;
+  const topDots = Math.round((format.labelTop || 0) * dpmm);
+  if (topDots !== 0) zpl += `^LT${topDots}\n`;
 
   console.log(`[FreeLabel ZPL] Format: ${format.name}, W=${format.width}mm, H=${format.height}mm, ` +
-    `DPI=${dpi}, labelH=${labelH}dots, ll=${ll}dots, rows=${rows}, cols=${cols}`);
+    `DPI=${dpi}, labelH=${labelH}dots, ll=${ll}dots, rows=${rows}, cols=${cols}, LT=${topDots}, LS=${shiftDots}`);
 
   for (let row = 0; row < rows; row++) {
     const rowOffsetY = row * (labelH + vGapDots);
@@ -682,6 +682,80 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
     }
   };
 
+  // ── Calibration print — generates known test pattern to diagnose clipping ──
+  const handleCalibrationPrint = async () => {
+    if (!selectedSystemPrinter) {
+      onShowToast?.("Selecciona una impresora", "error");
+      return;
+    }
+    const f = currentFormat;
+    const dpi = f.dpi;
+    const dpmm = dpi / 25.4;
+    const w = Math.round(f.width * dpmm);
+    const h = Math.round(f.height * dpmm);
+    const cols = f.labelsPerRow || 1;
+    const rows = f.labelsPerColumn || 1;
+    const gapD = Math.round(f.horizontalGap * dpmm);
+    const vGapD = Math.round((f.verticalGap || 2) * dpmm);
+    const mL = Math.round(f.marginLeft * dpmm);
+    const mR = Math.round((f.marginRight || 0) * dpmm);
+    const pw = Math.max(w, w * cols + gapD * Math.max(0, cols - 1) + mL + mR);
+    const ll = rows * h + Math.max(0, rows - 1) * vGapD;
+    const shiftD = Math.round((f.labelShift || 0) * dpmm);
+    const topD = Math.round((f.labelTop || 0) * dpmm);
+
+    // Build calibration ZPL — lines at 0%, 25%, 50%, 75%, 100% of label height
+    let zpl = "^XA\n^CI28\n^MNN\n^LH0,0\n";
+    zpl += `^PW${pw}\n^LL${ll}\n~SD${f.darkness}\n^PR${f.printSpeed}\n`;
+    if (shiftD !== 0) zpl += `^LS${shiftD}\n`;
+    if (topD !== 0) zpl += `^LT${topD}\n`;
+
+    // For each column in first row, draw calibration pattern
+    for (let col = 0; col < cols; col++) {
+      const cx = mL + col * (w + gapD);
+      const usable = w - mL - mR;
+      const fontH = Math.round(2.5 * dpmm); // 2.5mm font
+      const fontW = Math.round(fontH * 0.5);
+
+      // Header text
+      zpl += `^FO${cx},${Math.round(1 * dpmm)}^A0N,${fontH},${fontW}^FDC${col+1} ${f.width}x${f.height}mm^FS\n`;
+
+      // Horizontal lines at 0%, 25%, 50%, 75%, 100% of label height
+      const percentages = [0, 10, 20, 25, 30, 40, 50, 60, 70, 75, 80, 90, 100];
+      for (const pct of percentages) {
+        const yMm = (f.height * pct) / 100;
+        const yDots = Math.round(yMm * dpmm);
+        if (yDots <= 0 || yDots >= h) continue; // skip edges
+        // Draw line
+        const thickness = (pct % 25 === 0) ? 3 : 1;
+        zpl += `^FO${cx},${yDots}^GB${usable},${thickness},${thickness}^FS\n`;
+        // Label only at 25% intervals
+        if (pct % 25 === 0) {
+          zpl += `^FO${cx + 4},${yDots + 2}^A0N,${fontH},${fontW}^FD${pct}% = ${yMm.toFixed(1)}mm (Y=${yDots})^FS\n`;
+        }
+      }
+
+      // Draw border rectangle
+      zpl += `^FO${cx},0^GB${usable},${h},2^FS\n`;
+    }
+
+    zpl += "^PQ1,0,1,Y\n^XZ\n";
+
+    console.log(`[CALIBRATION ZPL] Format: ${f.name}, W=${f.width}mm, H=${f.height}mm, LL=${ll}, LT=${topD}, LS=${shiftD}`);
+    console.log(zpl);
+
+    setUsbPrinting(true);
+    try {
+      const result = await sendPrintJob(zpl, selectedSystemPrinter, localBridgeAvailable, bridgeUrl);
+      if (result.ok) onShowToast?.(`✅ Calibración enviada`, "success");
+      else onShowToast?.(result.message || "Error", "error");
+    } catch (e: any) {
+      onShowToast?.("Error: " + e.message, "error");
+    } finally {
+      setUsbPrinting(false);
+    }
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="h-full flex flex-col bg-slate-50">
@@ -1052,6 +1126,15 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>{usbPrinting ? "..." : "Imprimir"}</span>
+                </button>
+                <button
+                  onClick={handleCalibrationPrint}
+                  disabled={usbPrinting || !selectedSystemPrinter}
+                  className="flex items-center gap-1 px-2 py-1.5 outline-none rounded bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10px] transition-colors border border-amber-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mt-3"
+                  title="Imprime patrón de calibración con líneas a 25%, 50%, 75% y 100% del alto"
+                >
+                  <Ruler className="w-3 h-3" />
+                  <span>Calibrar</span>
                 </button>
                 <button
                   onClick={handleDownloadZPL}
