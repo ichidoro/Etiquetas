@@ -91,46 +91,50 @@ export async function fetchPrinters(
   bridgeUrl?: string | null
 ): Promise<{ Name: string; PortName: string; DriverName: string; _bridgeId?: string; _bridgeHost?: string }[]> {
   
-  // Direct local bridge (localhost:3000 on same PC)
+  // On cloud with local bridge — show ONLY cloud bridge printers (with hostname)
+  // Don't show local drivers since they're misleading (driver installed ≠ physically connected)
   if (bridgeUrl && bridgeUrl !== "CLOUD_QUEUE") {
-    let localPrinters: { Name: string; PortName: string; DriverName: string; _bridgeId?: string; _bridgeHost?: string }[] = [];
-    try {
-      console.log(`[PrintBridge] Fetching printers from: ${bridgeUrl}`);
-      const res = await fetch(`${bridgeUrl}/api/system-printers`);
-      if (res.ok) {
-        const printers = await res.json();
-        localPrinters = printers.map((p: any) => ({
-          ...p,
-          PortName: `${p.PortName || 'USB'} · Este PC`,
-          _bridgeHost: 'Este PC',
-        }));
-        console.log(`[PrintBridge] Found ${localPrinters.length} local printers`);
-      }
-    } catch (err) {
-      console.log("[PrintBridge] Error fetching printers from bridge:", err);
-    }
+    const allPrinters: { Name: string; PortName: string; DriverName: string; _bridgeId?: string; _bridgeHost?: string }[] = [];
+    const seen = new Set<string>();
 
-    // Also fetch remote printers from cloud bridges
     try {
       const bridges = await getAllBridges();
       printerToBridge = new Map();
       for (const bridge of bridges) {
         if (!bridge.printers || bridge.printers.length === 0) continue;
+        console.log(`[PrintBridge] Bridge "${bridge.hostname}" → ${bridge.printers.length} impresoras`);
+        
         for (const p of bridge.printers) {
+          // Key = name+bridge to allow same printer on different PCs
+          const key = `${p.Name}__${bridge.id}`;
           printerToBridge.set(p.Name, bridge.id);
-          // Always add remote printers (even if same name exists locally)
-          localPrinters.push({
-            Name: p.Name,
-            PortName: `via ${bridge.hostname}`,
-            DriverName: p.DriverName || "",
-            _bridgeId: bridge.id,
-            _bridgeHost: bridge.hostname,
-          });
+          
+          if (!seen.has(key)) {
+            seen.add(key);
+            allPrinters.push({
+              Name: p.Name,
+              PortName: `via ${bridge.hostname}`,
+              DriverName: p.DriverName || "",
+              _bridgeId: bridge.id,
+              _bridgeHost: bridge.hostname,
+            });
+          }
         }
       }
-    } catch {}
+      console.log(`[PrintBridge] Total: ${allPrinters.length} impresoras de ${bridges.length} bridge(s)`);
+    } catch (err) {
+      console.log("[PrintBridge] Error fetching bridges:", err);
+      // Fallback: try local bridge directly
+      try {
+        const res = await fetch(`${bridgeUrl}/api/system-printers`);
+        if (res.ok) {
+          const printers = await res.json();
+          return printers;
+        }
+      } catch {}
+    }
 
-    return localPrinters;
+    return allPrinters;
   }
 
   // Cloud queue mode — get printers from ALL bridges and merge
