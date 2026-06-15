@@ -47,15 +47,47 @@ function setCors(res, req) {
 // ── Get Windows printers via PowerShell ──────────────────────────────────────
 function getSystemPrinters() {
   try {
-    const ps = `Get-Printer | Select-Object Name, PortName, DriverName | ConvertTo-Json -Compress`;
+    // Get printers WITH status and port info
+    const ps = `Get-Printer | Select-Object Name, PortName, DriverName, PrinterStatus, @{N='Offline';E={$_.WorkOffline}} | ConvertTo-Json -Compress`;
     const raw = execSync(`powershell -NoProfile -Command "${ps}"`, {
       encoding: "utf-8",
       timeout: 10000,
     }).trim();
     const parsed = JSON.parse(raw);
     const all = Array.isArray(parsed) ? parsed : [parsed];
-    // Only show Zebra printers
-    return all.filter(p => p.DriverName && p.DriverName.includes('ZDesigner'));
+    
+    // Only Zebra printers
+    const zebras = all.filter(p => p.DriverName && p.DriverName.includes('ZDesigner'));
+    
+    // For USB printers, verify they're physically connected by checking
+    // if the USB port device actually exists using PnP
+    const verified = [];
+    for (const p of zebras) {
+      if (p.PortName && p.PortName.startsWith('USB')) {
+        // Check if any Zebra USB device is actually connected
+        try {
+          const checkCmd = `Get-PnpDevice -Class Printer -Status OK -ErrorAction SilentlyContinue | Where-Object { $_.FriendlyName -like '*${p.Name.replace(/'/g, "''")}*' } | Measure-Object | Select-Object -ExpandProperty Count`;
+          const count = execSync(`powershell -NoProfile -Command "${checkCmd}"`, {
+            encoding: "utf-8",
+            timeout: 8000,
+          }).trim();
+          if (parseInt(count) > 0) {
+            console.log(`  ✅ ${p.Name} — dispositivo USB conectado`);
+            verified.push(p);
+          } else {
+            console.log(`  ⏭️  ${p.Name} — solo driver, sin dispositivo USB`);
+          }
+        } catch {
+          // If check fails, include the printer to be safe
+          verified.push(p);
+        }
+      } else {
+        // Network printers always included
+        verified.push(p);
+      }
+    }
+    
+    return verified;
   } catch (err) {
     console.error("Error listing printers:", err.message);
     return [];
