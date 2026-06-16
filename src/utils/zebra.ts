@@ -117,8 +117,7 @@ export function generateZpl(
     zpl += `^LL${ll}\n`;
     zpl += `~SD${format.darkness}\n`;
     zpl += `^PR${format.printSpeed}\n`;
-    const shiftDots = Math.round((format.labelShift || 0) * dpmm);
-    if (shiftDots !== 0) zpl += `^LS${shiftDots}\n`;
+    // NOTE: ^LS removed — column positioning handled via marginLeft + colOffsetX
     const topDots = Math.round((format.labelTop || 0) * dpmm);
     if (topDots !== 0) zpl += `^LT${topDots}\n`;
 
@@ -192,7 +191,7 @@ export function generateZpl(
       if (labelsGenerated >= total) break;
     }
 
-    zpl += "^PQ1,0,1,Y\n";
+    zpl += "^PQ1\n";
     zpl += "^XZ\n";
     fullZpl += zpl;
   }
@@ -220,8 +219,7 @@ export function generateCalibrationZpl(format: LabelFormat): string {
 
   let z = "^XA\n";
   z += `^PW${pw}\n^LL${ll}\n~SD${format.darkness}\n^PR${format.printSpeed}\n`;
-  const shiftDots = Math.round((format.labelShift || 0) * dpmm);
-  if (shiftDots !== 0) z += `^LS${shiftDots}\n`;
+  // NOTE: ^LS removed — column positioning handled via marginLeft + colOffsetX
   const topDots = Math.round((format.labelTop || 0) * dpmm);
   if (topDots !== 0) z += `^LT${topDots}\n`;
 
@@ -286,6 +284,6 @@ export function generateCalibrationZpl(format: LabelFormat): string {
     }
   }
 
-  z += "^PQ1,0,1,Y\n^XZ\n";
+  z += "^PQ1\n^XZ\n";
   return z;
 }

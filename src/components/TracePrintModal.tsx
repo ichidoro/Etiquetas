@@ -112,9 +112,7 @@ function generateTraceZpl(
   zpl += `^LL${totalLL}\n`;
   zpl += `~SD${format.darkness}\n`;
   zpl += `^PR${format.printSpeed}\n`;
-  // Label shift (horizontal offset correction)
-  const shiftDots = Math.round((format.labelShift || 0) * dpmm);
-  if (shiftDots !== 0) zpl += `^LS${shiftDots}\n`;
+  // NOTE: ^LS removed — column positioning handled via marginLeft + colOffsetX
   // Label top (vertical offset correction)
   const topDots = Math.round((format.labelTop || 0) * dpmm);
   if (topDots !== 0) zpl += `^LT${topDots}\n`;
@@ -142,7 +140,7 @@ function generateTraceZpl(
     }
   }
 
-  zpl += `^PQ${copies},0,1,Y\n`;
+  zpl += `^PQ${copies}\n`;
   zpl += "^XZ\n";
   return zpl;
 }
@@ -823,7 +821,7 @@ export function TracePrintModal({
           </div>
 
           {/* ── BOTTOM ROW: full-width print console ── */}
-          <div className="bg-slate-800 p-4 text-white border-t border-slate-700">
+          <div className="bg-slate-800 p-4 text-white border-t border-slate-700 flex-shrink-0">
             <div className="flex items-center gap-2 mb-3">
               <Code className="w-3.5 h-3.5 text-blue-400" />
               <h3 className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Consola de Impresión</h3>
