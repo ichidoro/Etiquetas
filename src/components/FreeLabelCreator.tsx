@@ -435,6 +435,21 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
   const [activeFormatId, setActiveFormatId] = useState(labelFormats[0]?.id || "");
   const currentFormat = labelFormats.find((f) => f.id === activeFormatId) || labelFormats[0];
 
+  // ── Local fine-tune overrides for ^LS and ^LT (applied on top of format values)
+  const [localShift, setLocalShift] = useState<number>(currentFormat?.labelShift || 0);
+  const [localTop, setLocalTop] = useState<number>(currentFormat?.labelTop || 0);
+  // Sync when format changes
+  useEffect(() => {
+    setLocalShift(currentFormat?.labelShift || 0);
+    setLocalTop(currentFormat?.labelTop || 0);
+  }, [activeFormatId, currentFormat?.labelShift, currentFormat?.labelTop]);
+  // Effective format: merge local overrides
+  const effectiveFormat = useMemo(() => ({
+    ...currentFormat,
+    labelShift: localShift,
+    labelTop: localTop,
+  }), [currentFormat, localShift, localTop]);
+
   // ── Elements
   const [elements, setElements] = useState<LabelElement[]>([]);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
@@ -633,8 +648,8 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
 
   // ── ZPL
   const zplCode = useMemo(
-    () => generateFreeZpl(currentFormat, elements, copies, startNumber),
-    [currentFormat, elements, copies, startNumber]
+    () => generateFreeZpl(effectiveFormat, elements, copies, startNumber),
+    [effectiveFormat, elements, copies, startNumber]
   );
 
   const handleCopyZpl = () => {
@@ -686,7 +701,7 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
       onShowToast?.("Selecciona una impresora", "error");
       return;
     }
-    const f = currentFormat;
+    const f = effectiveFormat;
     const dpi = f.dpi;
     const dpmm = dpi / 25.4;
     const w = Math.round(f.width * dpmm);
@@ -1114,6 +1129,38 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
                   />
                 </div>
               )}
+
+              {/* ── Fine-tune adjustments (^LS / ^LT) ── */}
+              <div className="flex items-end gap-1.5 flex-shrink-0">
+                <div style={{ width: '65px' }}>
+                  <label className="block text-[8px] font-semibold text-amber-400 uppercase tracking-wider mb-0.5">
+                    ^LS (mm)
+                  </label>
+                  <input
+                    type="number" step="0.5" 
+                    value={localShift}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setLocalShift(val);
+                    }}
+                    className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-amber-300 outline-none font-semibold"
+                  />
+                </div>
+                <div style={{ width: '65px' }}>
+                  <label className="block text-[8px] font-semibold text-amber-400 uppercase tracking-wider mb-0.5">
+                    ^LT (mm)
+                  </label>
+                  <input
+                    type="number" step="0.5"
+                    value={localTop}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setLocalTop(val);
+                    }}
+                    className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-amber-300 outline-none font-semibold"
+                  />
+                </div>
+              </div>
 
               {/* Print + Download buttons */}
               <div className="flex items-end gap-1.5 flex-shrink-0">
