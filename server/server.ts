@@ -1097,15 +1097,43 @@ function startBridgeServices() {
   async function registerBridge() {
     try {
       const printers = await new Promise<any[]>((resolve) => {
-        exec('powershell -NoProfile -Command "Get-Printer | Select-Object Name, DriverName | ConvertTo-Json -Compress"',
-          { timeout: 5000 },
-          (err, stdout) => {
+        // Step 1: Get all Zebra printers
+        exec('powershell -NoProfile -Command "Get-Printer | Select-Object Name, PortName, DriverName | ConvertTo-Json -Compress"',
+          { timeout: 8000 },
+          async (err, stdout) => {
             if (err) { resolve([]); return; }
             try {
               const parsed = JSON.parse(stdout.trim());
               const all = Array.isArray(parsed) ? parsed : [parsed];
-              // Only register Zebra printers
-              resolve(all.filter((p: any) => p.DriverName && p.DriverName.includes('ZDesigner')));
+              const zebras = all.filter((p: any) => p.DriverName && p.DriverName.includes('ZDesigner'));
+              
+              // Step 2: Verify USB printers are physically connected via PnP
+              const verified: any[] = [];
+              for (const p of zebras) {
+                if (p.PortName && p.PortName.startsWith('USB')) {
+                  try {
+                    const safeName = p.Name.replace(/'/g, "''");
+                    const checkCmd = `Get-PnpDevice -Class Printer -Status OK -ErrorAction SilentlyContinue | Where-Object { $_.FriendlyName -like '*${safeName}*' } | Measure-Object | Select-Object -ExpandProperty Count`;
+                    const count = await new Promise<string>((res) => {
+                      exec(`powershell -NoProfile -Command "${checkCmd}"`, { timeout: 8000 }, (e, out) => {
+                        res(e ? '0' : (out || '').trim());
+                      });
+                    });
+                    if (parseInt(count) > 0) {
+                      console.log(`  ✅ ${p.Name} — USB conectado`);
+                      verified.push(p);
+                    } else {
+                      console.log(`  ⏭️  ${p.Name} — driver sin dispositivo (fantasma)`);
+                    }
+                  } catch {
+                    verified.push(p); // If check fails, include to be safe
+                  }
+                } else {
+                  // Network printers always included
+                  verified.push(p);
+                }
+              }
+              resolve(verified);
             } catch { resolve([]); }
           }
         );
