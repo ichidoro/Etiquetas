@@ -150,8 +150,7 @@ function generateFreeZpl(
   const rows = format.labelsPerColumn || 1;
   const vGapDots = mmToDots(format.verticalGap || 2, dpi);
 
-  // Use full 4" printhead width for independent column positioning
-  const totalPw = Math.round(104 * dpmm);
+  const totalPw = Math.max(labelW, labelW * cols + gapDots * Math.max(0, cols - 1) + marginL + marginR);
 
   // ── Total page height: all rows + vertical gaps between them ──
   const ll = rows * labelH + Math.max(0, rows - 1) * vGapDots;
@@ -177,15 +176,7 @@ function generateFreeZpl(
     const rowOffsetY = row * (labelH + vGapDots);
 
     for (let col = 0; col < cols; col++) {
-      // Independent column positioning
-      let colOffsetX: number;
-      if (cols <= 1 || col === 0) {
-        colOffsetX = marginL;
-      } else if (col === cols - 1) {
-        colOffsetX = totalPw - marginR - labelW;
-      } else {
-        colOffsetX = marginL + col * (labelW + gapDots);
-      }
+      const colOffsetX = marginL + col * (labelW + gapDots);
 
       for (const el of elements) {
         const xDots = colOffsetX + mmToDots(el.x, dpi);
@@ -721,8 +712,7 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
     const vGapD = Math.round((f.verticalGap || 2) * dpmm);
     const mL = Math.round(f.marginLeft * dpmm);
     const mR = Math.round((f.marginRight || 0) * dpmm);
-    // Use full 4" printhead width for independent column positioning
-    const pw = Math.round(104 * dpmm);
+    const pw = Math.max(w, w * cols + gapD * Math.max(0, cols - 1) + mL + mR);
     const ll = rows * h + Math.max(0, rows - 1) * vGapD;
     const shiftD = Math.round((f.labelShift || 0) * dpmm);
     const topD = Math.round((f.labelTop || 0) * dpmm);
@@ -734,15 +724,7 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
 
     // For each column in first row, draw calibration pattern
     for (let col = 0; col < cols; col++) {
-      // Independent column positioning
-      let cx: number;
-      if (cols <= 1 || col === 0) {
-        cx = mL;
-      } else if (col === cols - 1) {
-        cx = pw - mR - w;
-      } else {
-        cx = mL + col * (w + gapD);
-      }
+      const cx = mL + col * (w + gapD);
       // Each column gets the full label width (margins are handled by cx positioning)
       const usable = w;
       const fontH = Math.round(2.5 * dpmm); // 2.5mm font

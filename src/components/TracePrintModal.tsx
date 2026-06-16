@@ -90,8 +90,9 @@ function generateTraceZpl(
   const rows = format.labelsPerColumn || 1;
   const vGap = Math.round((format.verticalGap || 2) * dpmm);
 
-  // Use full 4" printhead width for independent column positioning
-  const totalPw = Math.round(104 * dpmm);
+  // Total print width: left margin + labels + gaps + right margin
+  const gridWidth = labelW * cols + gapDots * Math.max(0, cols - 1);
+  const totalPw = marginL + gridWidth + marginR;
 
   const dateFontH = Math.round(dateFontMm * dpmm);
   const dateFontW = Math.round(dateFontH * 0.6);
@@ -118,15 +119,7 @@ function generateTraceZpl(
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
-      // Independent column positioning
-      let colOffsetX: number;
-      if (cols <= 1 || col === 0) {
-        colOffsetX = marginL;
-      } else if (col === cols - 1) {
-        colOffsetX = totalPw - marginR - labelW;
-      } else {
-        colOffsetX = marginL + col * (labelW + gapDots);
-      }
+      const colOffsetX = marginL + col * (labelW + gapDots);
       const rowOffsetY = row * (labelH + vGap);
 
       const y1 = rowOffsetY + Math.round(positions.elabY * dpmm);

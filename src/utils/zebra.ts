@@ -78,11 +78,10 @@ export function generateZpl(
   const marginRightDots = Math.round((format.marginRight || 0) * dpmm);
   const marginTopDots = Math.round((format.marginTop || 0) * dpmm);
 
-  // Print width: use full 4" printhead width so margins position columns independently
-  // marginLeft positions column 1 from the LEFT edge
-  // marginRight positions the last column from the RIGHT edge
-  const printheadWidth = Math.round(104 * dpmm); // 4" printhead = 104mm
-  const totalPw = printheadWidth;
+  // Total print width: left margin + labels + gaps + right margin
+  const gridWidth = labelWidthDots * format.labelsPerRow +
+    gapDots * Math.max(0, format.labelsPerRow - 1);
+  const totalPw = marginLeftDots + gridWidth + marginRightDots;
   const verticalGapDots = Math.round((format.verticalGap || 2) * dpmm);
   const verticalCount = format.labelsPerColumn || 1;
   const ll = verticalCount * labelHeightDots +
@@ -126,18 +125,7 @@ export function generateZpl(
       for (let col = 0; col < horizontalCount; col++) {
         if (labelsGenerated >= total) break; // stop when we have enough
 
-        // Independent column positioning:
-        // Col 0: from the LEFT (marginLeft)
-        // Last col: from the RIGHT (marginRight)
-        // Middle cols: evenly spaced between first and last
-        let colOffsetX: number;
-        if (horizontalCount <= 1 || col === 0) {
-          colOffsetX = marginLeftDots;
-        } else if (col === horizontalCount - 1) {
-          colOffsetX = totalPw - marginRightDots - labelWidthDots;
-        } else {
-          colOffsetX = marginLeftDots + col * (labelWidthDots + gapDots);
-        }
+        const colOffsetX = marginLeftDots + col * (labelWidthDots + gapDots);
         const rowOffsetY = row * (labelHeightDots + verticalGapDots);
 
         // Name
@@ -223,12 +211,10 @@ export function generateCalibrationZpl(format: LabelFormat): string {
   const gapH = Math.round(format.horizontalGap * dpmm);
   const gapV = Math.round((format.verticalGap || 2) * dpmm);
   const ml = Math.round(format.marginLeft * dpmm);
-  const mr = Math.round((format.marginRight || 0) * dpmm);
   const cols = format.labelsPerRow || 1;
   const rows = format.labelsPerColumn || 1;
 
-  // Use full printhead width for independent column positioning
-  const pw = Math.round(104 * dpmm); // 4" printhead
+  const pw = Math.max(lw, lw * cols + gapH * Math.max(0, cols - 1) + ml);
   const ll = rows * lh + Math.max(0, rows - 1) * gapV;
 
   let z = "^XA\n";
@@ -239,15 +225,7 @@ export function generateCalibrationZpl(format: LabelFormat): string {
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
-      // Independent column positioning
-      let ox: number;
-      if (cols <= 1 || col === 0) {
-        ox = ml;
-      } else if (col === cols - 1) {
-        ox = pw - mr - lw;
-      } else {
-        ox = ml + col * (lw + gapH);
-      }
+      const ox = ml + col * (lw + gapH);  // cell origin X
       const oy = row * (lh + gapV);       // cell origin Y
 
       // 1. Border rectangle (2-dot thick)
