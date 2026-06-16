@@ -159,18 +159,18 @@ function generateFreeZpl(
 
   // ── Single ^XA..^XZ block with all rows and columns ──
   // Match EXACTLY the same ZPL setup as the barcode module (which prints correctly)
+  // NOTE: ^LS is NOT used here — column positioning is handled via marginLeft + colOffsetX
+  // ^LT is used for vertical fine-tuning only
   let zpl = "^XA\n";
   zpl += `^PW${totalPw}\n`;
   zpl += `^LL${ll}\n`;
   zpl += `~SD${format.darkness}\n`;
   zpl += `^PR${format.printSpeed}\n`;
-  const shiftDots = Math.round((format.labelShift || 0) * dpmm);
-  if (shiftDots !== 0) zpl += `^LS${shiftDots}\n`;
   const topDots = Math.round((format.labelTop || 0) * dpmm);
   if (topDots !== 0) zpl += `^LT${topDots}\n`;
 
   console.log(`[FreeLabel ZPL] Format: ${format.name}, W=${format.width}mm, H=${format.height}mm, ` +
-    `DPI=${dpi}, labelH=${labelH}dots, ll=${ll}dots, rows=${rows}, cols=${cols}, LT=${topDots}, LS=${shiftDots}`);
+    `DPI=${dpi}, labelH=${labelH}dots, ll=${ll}dots, rows=${rows}, cols=${cols}, LT=${topDots}`);
 
   for (let row = 0; row < rows; row++) {
     const rowOffsetY = row * (labelH + vGapDots);
@@ -207,7 +207,7 @@ function generateFreeZpl(
     }
   }
 
-  zpl += "^PQ1,0,1,Y\n";
+  zpl += "^PQ1\n";
   zpl += "^XZ\n";
 
   // If copies > 1, repeat the entire ZPL block
@@ -717,16 +717,16 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
     const shiftD = Math.round((f.labelShift || 0) * dpmm);
     const topD = Math.round((f.labelTop || 0) * dpmm);
 
-    // Build calibration ZPL — match barcode module setup exactly
+    // Build calibration ZPL — NO ^LS (columns positioned via marginLeft + colOffsetX)
     let zpl = "^XA\n";
     zpl += `^PW${pw}\n^LL${ll}\n~SD${f.darkness}\n^PR${f.printSpeed}\n`;
-    if (shiftD !== 0) zpl += `^LS${shiftD}\n`;
     if (topD !== 0) zpl += `^LT${topD}\n`;
 
     // For each column in first row, draw calibration pattern
     for (let col = 0; col < cols; col++) {
       const cx = mL + col * (w + gapD);
-      const usable = w - mL - mR;
+      // Each column gets the full label width (margins are handled by cx positioning)
+      const usable = w;
       const fontH = Math.round(2.5 * dpmm); // 2.5mm font
       const fontW = Math.round(fontH * 0.5);
 
@@ -752,9 +752,9 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
       zpl += `^FO${cx},0^GB${usable},${h},2^FS\n`;
     }
 
-    zpl += "^PQ1,0,1,Y\n^XZ\n";
+    zpl += "^PQ1\n^XZ\n";
 
-    console.log(`[CALIBRATION ZPL] Format: ${f.name}, W=${f.width}mm, H=${f.height}mm, LL=${ll}, LT=${topD}, LS=${shiftD}`);
+    console.log(`[CALIBRATION ZPL] Format: ${f.name}, W=${f.width}mm, H=${f.height}mm, LL=${ll}, LT=${topD}`);
     console.log(zpl);
 
     setUsbPrinting(true);
@@ -1130,25 +1130,11 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
                 </div>
               )}
 
-              {/* ── Fine-tune adjustments (^LS / ^LT) ── */}
+              {/* ── Fine-tune vertical adjustment (^LT) ── */}
               <div className="flex items-end gap-1.5 flex-shrink-0">
-                <div style={{ width: '65px' }}>
+                <div style={{ width: '75px' }}>
                   <label className="block text-[8px] font-semibold text-amber-400 uppercase tracking-wider mb-0.5">
-                    ^LS (mm)
-                  </label>
-                  <input
-                    type="number" step="0.5" 
-                    value={localShift}
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      setLocalShift(val);
-                    }}
-                    className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-amber-300 outline-none font-semibold"
-                  />
-                </div>
-                <div style={{ width: '65px' }}>
-                  <label className="block text-[8px] font-semibold text-amber-400 uppercase tracking-wider mb-0.5">
-                    ^LT (mm)
+                    Ajuste ↕ (mm)
                   </label>
                   <input
                     type="number" step="0.5"
@@ -1159,6 +1145,7 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
                     }}
                     className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-amber-300 outline-none font-semibold"
                   />
+                  <p className="text-[7px] text-slate-500 mt-0.5">- = arriba</p>
                 </div>
               </div>
 
