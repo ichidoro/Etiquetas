@@ -158,10 +158,8 @@ function generateFreeZpl(
   const today = formatDDMMYYYY(new Date());
 
   // ── Single ^XA..^XZ block with all rows and columns ──
+  // Match EXACTLY the same ZPL setup as the barcode module (which prints correctly)
   let zpl = "^XA\n";
-  zpl += "^CI28\n"; // UTF-8 encoding (ñ, á, é, etc.)
-  zpl += "^MNN\n"; // Continuous media — forces printer to use our ^LL value
-  zpl += "^LH0,0\n"; // Label home at origin
   zpl += `^PW${totalPw}\n`;
   zpl += `^LL${ll}\n`;
   zpl += `~SD${format.darkness}\n`;
@@ -704,8 +702,8 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
     const shiftD = Math.round((f.labelShift || 0) * dpmm);
     const topD = Math.round((f.labelTop || 0) * dpmm);
 
-    // Build calibration ZPL — lines at 0%, 25%, 50%, 75%, 100% of label height
-    let zpl = "^XA\n^CI28\n^MNN\n^LH0,0\n";
+    // Build calibration ZPL — match barcode module setup exactly
+    let zpl = "^XA\n";
     zpl += `^PW${pw}\n^LL${ll}\n~SD${f.darkness}\n^PR${f.printSpeed}\n`;
     if (shiftD !== 0) zpl += `^LS${shiftD}\n`;
     if (topD !== 0) zpl += `^LT${topD}\n`;
