@@ -246,12 +246,54 @@ function DraggableTracePreview({
   return (
     <div className="flex flex-col items-center gap-2">
       <div className="relative bg-slate-100 rounded-lg p-3 border border-slate-200"
-        style={{ width: gridW + 24, height: gridH + 24 }}>
-        <div className="relative" style={{ width: gridW, height: gridH }} ref={containerRef}>
+        style={{ width: gridW + 44, height: gridH + 44 }}>
+        <div className="relative" style={{ width: gridW + 20, height: gridH + 20, paddingTop: '20px', paddingLeft: '20px' }} ref={containerRef}>
+          {/* Horizontal Ruler (Top) */}
+          <div className="absolute top-0 left-[20px] h-[20px] overflow-visible" style={{ width: singleW }}>
+            <svg width={singleW} height="20" className="overflow-visible select-none">
+              {Array.from({ length: format.width + 1 }).map((_, mm) => {
+                const x = mm * scale;
+                let h = 3;
+                let showLabel = false;
+                if (mm % 10 === 0) { h = 8; showLabel = true; }
+                else if (mm % 5 === 0) { h = 5; }
+                return (
+                  <g key={`h-tick-${mm}`}>
+                    <line x1={x} y1={20} x2={x} y2={20 - h} stroke="#94a3b8" strokeWidth="1" />
+                    {showLabel && (
+                      <text x={x} y={9} textAnchor="middle" fontSize="7px" fill="#64748b" fontWeight="bold">{mm}</text>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+
+          {/* Vertical Ruler (Left) */}
+          <div className="absolute top-[20px] left-0 w-[20px] overflow-visible" style={{ height: singleH }}>
+            <svg width="20" height={singleH} className="overflow-visible select-none">
+              {Array.from({ length: format.height + 1 }).map((_, mm) => {
+                const y = mm * scale;
+                let w = 3;
+                let showLabel = false;
+                if (mm % 10 === 0) { w = 8; showLabel = true; }
+                else if (mm % 5 === 0) { w = 5; }
+                return (
+                  <g key={`v-tick-${mm}`}>
+                    <line x1={20} y1={y} x2={20 - w} y2={y} stroke="#94a3b8" strokeWidth="1" />
+                    {showLabel && (
+                      <text x={9} y={y + 3} textAnchor="end" fontSize="7px" fill="#64748b" fontWeight="bold">{mm}</text>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+
           {Array.from({ length: rows }).map((_, row) =>
             Array.from({ length: cols }).map((_, col) => {
-              const offsetX = col * (singleW + gapPx);
-              const offsetY = row * (singleH + vGapPx);
+              const offsetX = 20 + col * (singleW + gapPx);
+              const offsetY = 20 + row * (singleH + vGapPx);
               const isFirstLabel = row === 0 && col === 0;
 
               return (

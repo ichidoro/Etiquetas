@@ -241,15 +241,64 @@ export function DraggableLabelPreview({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
-        {/* Label surface */}
-        <div
-          ref={labelRef}
-          className="bg-white relative shadow-[0_2px_12px_rgba(0,0,0,0.12)] border border-slate-200 overflow-visible"
-          style={{
-            width: `${mmToPx(format.width)}px`,
-            height: `${mmToPx(format.height)}px`,
-          }}
-        >
+        {/* Ruler and Canvas Wrapper */}
+        <div className="relative" style={{
+          paddingTop: '20px',
+          paddingLeft: '20px',
+          width: `${mmToPx(format.width) + 20}px`,
+          height: `${mmToPx(format.height) + 20}px`,
+        }}>
+          {/* Horizontal Ruler (Top) */}
+          <div className="absolute top-0 left-[20px] h-[20px] overflow-visible" style={{ width: `${mmToPx(format.width)}px` }}>
+            <svg width={mmToPx(format.width)} height="20" className="overflow-visible select-none">
+              {Array.from({ length: format.width + 1 }).map((_, mm) => {
+                const x = mmToPx(mm);
+                let h = 3;
+                let showLabel = false;
+                if (mm % 10 === 0) { h = 8; showLabel = true; }
+                else if (mm % 5 === 0) { h = 5; }
+                return (
+                  <g key={`h-tick-${mm}`}>
+                    <line x1={x} y1={20} x2={x} y2={20 - h} stroke="#94a3b8" strokeWidth="1" />
+                    {showLabel && (
+                      <text x={x} y={9} textAnchor="middle" fontSize="7px" fill="#64748b" fontWeight="bold">{mm}</text>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+
+          {/* Vertical Ruler (Left) */}
+          <div className="absolute top-[20px] left-0 w-[20px] overflow-visible" style={{ height: `${mmToPx(format.height)}px` }}>
+            <svg width="20" height={mmToPx(format.height)} className="overflow-visible select-none">
+              {Array.from({ length: format.height + 1 }).map((_, mm) => {
+                const y = mmToPx(mm);
+                let w = 3;
+                let showLabel = false;
+                if (mm % 10 === 0) { w = 8; showLabel = true; }
+                else if (mm % 5 === 0) { w = 5; }
+                return (
+                  <g key={`v-tick-${mm}`}>
+                    <line x1={20} y1={y} x2={20 - w} y2={y} stroke="#94a3b8" strokeWidth="1" />
+                    {showLabel && (
+                      <text x={9} y={y + 3} textAnchor="end" fontSize="7px" fill="#64748b" fontWeight="bold">{mm}</text>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+
+          {/* Label surface */}
+          <div
+            ref={labelRef}
+            className="bg-white relative shadow-[0_2px_12px_rgba(0,0,0,0.12)] border border-slate-200 overflow-visible"
+            style={{
+              width: `${mmToPx(format.width)}px`,
+              height: `${mmToPx(format.height)}px`,
+            }}
+          >
           {/* 5mm grid */}
           <div className="absolute inset-0 pointer-events-none" style={{
             backgroundImage: `
@@ -268,6 +317,7 @@ export function DraggableLabelPreview({
               <span className="text-xs text-slate-300">Sin elementos</span>
             </div>
           )}
+        </div>
         </div>
       </div>
 
