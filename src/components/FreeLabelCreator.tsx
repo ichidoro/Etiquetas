@@ -334,8 +334,7 @@ function FreeLabelPreview({
                 const x = mm * scale;
                 let h = 3;
                 let showLabel = false;
-                if (mm % 10 === 0) { h = 8; showLabel = true; }
-                else if (mm % 5 === 0) { h = 5; }
+                if (mm % 5 === 0) { h = 8; showLabel = true; }
                 return (
                   <g key={`h-tick-${mm}`}>
                     <line x1={x} y1={20} x2={x} y2={20 - h} stroke="#94a3b8" strokeWidth="1" />
@@ -355,8 +354,7 @@ function FreeLabelPreview({
                 const y = mm * scale;
                 let w = 3;
                 let showLabel = false;
-                if (mm % 10 === 0) { w = 8; showLabel = true; }
-                else if (mm % 5 === 0) { w = 5; }
+                if (mm % 5 === 0) { w = 8; showLabel = true; }
                 return (
                   <g key={`v-tick-${mm}`}>
                     <line x1={20} y1={y} x2={20 - w} y2={y} stroke="#94a3b8" strokeWidth="1" />
