@@ -553,7 +553,7 @@ export function PrintModal({
               </div>
 
               {/* ZPL Code */}
-              <div className="flex-1 bg-slate-950 border border-slate-900 rounded-md p-2 overflow-hidden relative group min-h-[80px]">
+              <div className="flex-1 bg-slate-950 border border-slate-900 rounded-md p-2 overflow-hidden relative group min-h-[80px] max-h-[120px]">
                 <pre className="text-[8px] text-emerald-400 font-mono whitespace-pre-wrap break-all h-full overflow-y-auto custom-scrollbar leading-relaxed">
                   {zplCode}
                 </pre>
