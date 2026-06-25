@@ -30,18 +30,35 @@ export function DraggableLabelPreview({
   // Scale: pixels per mm
   const [scale, setScale] = useState(6);
 
+  const cols = format.labelsPerRow || 1;
+  const rows = format.labelsPerColumn || 1;
+  const gapMm = format.horizontalGap || 2;
+  const vGapMm = format.verticalGap || 2;
+
+  const paperWidthMm =
+    format.marginLeft +
+    cols * format.width +
+    Math.max(0, cols - 1) * gapMm +
+    format.marginRight;
+
+  const paperHeightMm =
+    format.marginTop +
+    rows * format.height +
+    Math.max(0, rows - 1) * vGapMm +
+    format.marginBottom;
+
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || paperWidthMm === 0) return;
     const observer = new ResizeObserver((entries) => {
       const w = entries[0].contentRect.width;
       const h = entries[0].contentRect.height;
-      const sx = (w - 40) / format.width;
-      const sy = (h - 40) / format.height;
-      setScale(Math.max(3, Math.min(sx, sy, 14)));
+      const sx = (w - 40) / paperWidthMm;
+      const sy = (h - 40) / (paperHeightMm || 1);
+      setScale(Math.max(1.5, Math.min(sx, sy, 32)));
     });
     observer.observe(containerRef.current);
     return () => observer.disconnect();
-  }, [format.width, format.height]);
+  }, [paperWidthMm, paperHeightMm]);
 
   const mmToPx = (mm: number) => mm * scale;
 
@@ -79,23 +96,24 @@ export function DraggableLabelPreview({
       const baseCenterMm = (format.width - elementWidthMm) / 2;
       const rawXMm = (e.clientX - labelRect.left - interaction.offsetX) / scale;
       const newX = rawXMm - baseCenterMm; // offset from center (0 = centered)
-      const newY = (e.clientY - labelRect.top - interaction.offsetY) / scale;
+      const newYVisual = (e.clientY - labelRect.top - interaction.offsetY) / scale;
       // Allow generous range: half the label width in either direction
       const maxOffset = format.width / 2;
       const clampedX = Math.max(-maxOffset, Math.min(newX, maxOffset));
-      const clampedY = Math.max(-2, Math.min(newY, format.height - pos.h));
+      const clampedYVisual = Math.max(0, Math.min(newYVisual, format.height - pos.h));
+      const newY = clampedYVisual + format.marginTop;
       const newPositions = positions.map(p =>
         p.id === interaction.elementId
-          ? { ...p, x: Math.round(clampedX * 10) / 10, y: Math.round(clampedY * 10) / 10 }
+          ? { ...p, x: Math.round(clampedX * 10) / 10, y: Math.round(newY * 10) / 10 }
           : p
       );
       onPositionsChange(newPositions);
     } else {
       // Resize — only change height
       const newBottomY = (e.clientY - labelRect.top) / scale;
-      const newH = newBottomY - pos.y;
+      const newH = newBottomY - (pos.y - format.marginTop);
       const minH = pos.id === 'name' ? 2 : 4;
-      const maxH = format.height - pos.y;
+      const maxH = format.height - (pos.y - format.marginTop);
       const clampedH = Math.max(minH, Math.min(newH, maxH));
       const newPositions = positions.map(p =>
         p.id === interaction.elementId
@@ -134,8 +152,8 @@ export function DraggableLabelPreview({
     }
   };
 
-  const renderElement = (pos: ElementPosition) => {
-    const isActive = interaction?.elementId === pos.id;
+  const renderElement = (pos: ElementPosition, isReadOnly: boolean = false) => {
+    const isActive = !isReadOnly && interaction?.elementId === pos.id;
     const isDragging = isActive && interaction?.type === 'drag';
     const isResizing = isActive && interaction?.type === 'resize';
     const heightPx = mmToPx(pos.h);
@@ -148,18 +166,18 @@ export function DraggableLabelPreview({
     const style: React.CSSProperties = {
       position: 'absolute',
       left: `${baseCenterX + xOffsetPx}px`,
-      top: `${mmToPx(pos.y)}px`,
+      top: `${mmToPx(pos.y - format.marginTop)}px`,
       width: `${elementWidthPx}px`,
       height: `${heightPx}px`,
-      cursor: isDragging ? 'grabbing' : 'grab',
+      cursor: isReadOnly ? 'default' : isDragging ? 'grabbing' : 'grab',
       zIndex: isActive ? 50 : 10,
       userSelect: 'none',
       transition: isActive ? 'none' : 'box-shadow 0.15s ease',
     };
 
-    const borderColor = isActive ? 'border-blue-500' : 'border-transparent hover:border-blue-400';
-    const bgColor = isActive ? 'bg-blue-50/80' : 'hover:bg-blue-50/40';
-    const shadow = isDragging ? 'shadow-lg ring-2 ring-blue-300' : isResizing ? 'shadow-md ring-1 ring-blue-200' : 'hover:shadow';
+    const borderColor = isReadOnly ? 'border-transparent' : isActive ? 'border-blue-500' : 'border-transparent hover:border-blue-400';
+    const bgColor = isReadOnly ? '' : isActive ? 'bg-blue-50/80' : 'hover:bg-blue-50/40';
+    const shadow = isReadOnly ? '' : isDragging ? 'shadow-lg ring-2 ring-blue-300' : isResizing ? 'shadow-md ring-1 ring-blue-200' : 'hover:shadow';
 
     if (pos.id === 'name') {
       return (
@@ -167,21 +185,23 @@ export function DraggableLabelPreview({
           key={pos.id}
           style={style}
           className={`rounded border ${borderColor} ${bgColor} ${shadow} flex items-center justify-center relative group/el`}
-          onMouseDown={(e) => handleMouseDown(e, pos.id, 'drag')}
+          onMouseDown={isReadOnly ? undefined : (e) => handleMouseDown(e, pos.id, 'drag')}
         >
           <div
             className="text-black font-bold text-center leading-tight px-1 truncate w-full"
             style={{ fontSize: `${mmToPx(pos.fontSize || 3)}px` }}
           >
-            {product.item_name.substring(0, 30)}
+            {product.item_name.substring(0, 40)}
           </div>
           {/* Resize handle */}
-          <div
-            className="absolute bottom-0 left-1/4 right-1/4 h-[4px] cursor-ns-resize opacity-0 group-hover/el:opacity-100 flex items-center justify-center"
-            onMouseDown={(e) => handleMouseDown(e, pos.id, 'resize')}
-          >
-            <div className="w-8 h-[3px] bg-blue-400 rounded-full" />
-          </div>
+          {!isReadOnly && (
+            <div
+              className="absolute bottom-0 left-1/4 right-1/4 h-[4px] cursor-ns-resize opacity-0 group-hover/el:opacity-100 flex items-center justify-center"
+              onMouseDown={(e) => handleMouseDown(e, pos.id, 'resize')}
+            >
+              <div className="w-8 h-[3px] bg-blue-400 rounded-full" />
+            </div>
+          )}
         </div>
       );
     }
@@ -202,7 +222,7 @@ export function DraggableLabelPreview({
         key={pos.id}
         style={style}
         className={`rounded border ${borderColor} ${bgColor} ${shadow} flex items-center justify-center relative group/el overflow-hidden`}
-        onMouseDown={(e) => handleMouseDown(e, pos.id, 'drag')}
+        onMouseDown={isReadOnly ? undefined : (e) => handleMouseDown(e, pos.id, 'drag')}
       >
         {barcodeUrl ? (
           <img
@@ -215,28 +235,23 @@ export function DraggableLabelPreview({
           <span className="text-[9px] text-red-500 font-mono">{pos.id}: {value}</span>
         )}
         {/* Resize handle */}
-        <div
-          className="absolute bottom-0 left-1/4 right-1/4 h-[5px] cursor-ns-resize opacity-0 group-hover/el:opacity-100 flex items-center justify-center"
-          onMouseDown={(e) => handleMouseDown(e, pos.id, 'resize')}
-        >
-          <div className="w-10 h-[3px] bg-blue-400 rounded-full" />
-        </div>
+        {!isReadOnly && (
+          <div
+            className="absolute bottom-0 left-1/4 right-1/4 h-[5px] cursor-ns-resize opacity-0 group-hover/el:opacity-100 flex items-center justify-center"
+            onMouseDown={(e) => handleMouseDown(e, pos.id, 'resize')}
+          >
+            <div className="w-10 h-[3px] bg-blue-400 rounded-full" />
+          </div>
+        )}
       </div>
     );
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-          Vista Previa
-          <span className="text-[10px] font-normal text-slate-400 normal-case tracking-normal">(arrastra · borde inferior redimensiona)</span>
-        </h3>
-      </div>
-
+    <div className="w-full h-full flex flex-col">
       <div
         ref={containerRef}
-        className="flex-1 bg-gradient-to-br from-slate-100 to-slate-50 rounded-lg border border-slate-200 flex items-center justify-center p-5 min-h-[220px] overflow-hidden"
+        className="flex-1 bg-slate-500/5 border border-slate-500/10 rounded-lg flex items-center justify-center p-5 min-h-[220px] overflow-hidden"
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
@@ -245,13 +260,14 @@ export function DraggableLabelPreview({
         <div className="relative" style={{
           paddingTop: '20px',
           paddingLeft: '20px',
-          width: `${mmToPx(format.width) + 20}px`,
-          height: `${mmToPx(format.height) + 20}px`,
+          width: `${mmToPx(paperWidthMm) + 20}px`,
+          height: `${mmToPx(paperHeightMm) + 20}px`,
         }}>
           {/* Horizontal Ruler (Top) */}
-          <div className="absolute top-0 left-[20px] h-[20px] overflow-visible" style={{ width: `${mmToPx(format.width)}px` }}>
-            <svg width={mmToPx(format.width)} height="20" className="overflow-visible select-none">
-              {Array.from({ length: format.width + 1 }).map((_, mm) => {
+          <div className="absolute top-0 left-[20px] h-[20px] overflow-visible" style={{ width: `${mmToPx(paperWidthMm)}px` }}>
+            <svg width={mmToPx(paperWidthMm)} height="20" className="overflow-visible select-none">
+              {Array.from({ length: Math.ceil(paperWidthMm) + 1 }).map((_, mm) => {
+                if (mm > paperWidthMm) return null;
                 const x = mmToPx(mm);
                 let h = 3;
                 let showLabel = false;
@@ -269,9 +285,10 @@ export function DraggableLabelPreview({
           </div>
 
           {/* Vertical Ruler (Left) */}
-          <div className="absolute top-[20px] left-0 w-[20px] overflow-visible" style={{ height: `${mmToPx(format.height)}px` }}>
-            <svg width="20" height={mmToPx(format.height)} className="overflow-visible select-none">
-              {Array.from({ length: format.height + 1 }).map((_, mm) => {
+          <div className="absolute top-[20px] left-0 w-[20px] overflow-visible" style={{ height: `${mmToPx(paperHeightMm)}px` }}>
+            <svg width="20" height={mmToPx(paperHeightMm)} className="overflow-visible select-none">
+              {Array.from({ length: Math.ceil(paperHeightMm) + 1 }).map((_, mm) => {
+                if (mm > paperHeightMm) return null;
                 const y = mmToPx(mm);
                 let w = 3;
                 let showLabel = false;
@@ -288,34 +305,62 @@ export function DraggableLabelPreview({
             </svg>
           </div>
 
-          {/* Label surface */}
+          {/* Backing Paper (Gray Roll/Paper Backing) */}
           <div
-            ref={labelRef}
-            className="bg-white relative shadow-[0_2px_12px_rgba(0,0,0,0.12)] border border-slate-200 overflow-visible"
+            className="bg-[#e0e0e0] absolute shadow-inner border border-slate-300 overflow-visible rounded-sm"
             style={{
-              width: `${mmToPx(format.width)}px`,
-              height: `${mmToPx(format.height)}px`,
+              left: '20px',
+              top: '20px',
+              width: `${mmToPx(paperWidthMm)}px`,
+              height: `${mmToPx(paperHeightMm)}px`,
             }}
           >
-          {/* 5mm grid */}
-          <div className="absolute inset-0 pointer-events-none" style={{
-            backgroundImage: `
-              linear-gradient(to right, rgba(0,0,0,0.04) 1px, transparent 1px),
-              linear-gradient(to bottom, rgba(0,0,0,0.04) 1px, transparent 1px)
-            `,
-            backgroundSize: `${mmToPx(5)}px ${mmToPx(5)}px`,
-          }} />
+            {/* Grid of labels */}
+            {Array.from({ length: rows }).map((_, rowIndex) => (
+              <React.Fragment key={`row-${rowIndex}`}>
+                {Array.from({ length: cols }).map((_, colIndex) => {
+                  const labelLeftPx = mmToPx(format.marginLeft + colIndex * (format.width + gapMm));
+                  const labelTopPx = mmToPx(format.marginTop + rowIndex * (format.height + vGapMm));
+                  const isFirstLabel = rowIndex === 0 && colIndex === 0;
 
-          {/* Draggable elements */}
-          {visibleElements.map(renderElement)}
+                  return (
+                    <div
+                      key={`label-${rowIndex}-${colIndex}`}
+                      ref={isFirstLabel ? labelRef : undefined}
+                      className={`bg-white absolute shadow-[0_2px_8px_rgba(0,0,0,0.12)] border ${
+                        isFirstLabel ? 'border-blue-300 ring-1 ring-blue-100' : 'border-slate-200'
+                      } overflow-visible`}
+                      style={{
+                        left: `${labelLeftPx}px`,
+                        top: `${labelTopPx}px`,
+                        width: `${mmToPx(format.width)}px`,
+                        height: `${mmToPx(format.height)}px`,
+                      }}
+                    >
+                      {/* 5mm grid */}
+                      <div className="absolute inset-0 pointer-events-none" style={{
+                        backgroundImage: `
+                          linear-gradient(to right, rgba(0,0,0,0.04) 1px, transparent 1px),
+                          linear-gradient(to bottom, rgba(0,0,0,0.04) 1px, transparent 1px)
+                        `,
+                        backgroundSize: `${mmToPx(5)}px ${mmToPx(5)}px`,
+                      }} />
 
-          {/* Empty state */}
-          {visibleElements.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-xs text-slate-300">Sin elementos</span>
-            </div>
-          )}
-        </div>
+                      {/* Elements */}
+                      {visibleElements.map((pos) => renderElement(pos, !isFirstLabel))}
+
+                      {/* Empty state */}
+                      {visibleElements.length === 0 && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-xs text-slate-300">Sin elementos</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </React.Fragment>
+            ))}
+          </div>
         </div>
       </div>
 

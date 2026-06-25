@@ -883,8 +883,13 @@ app.get('/api/system-printers', (req, res) => {
       try {
         const parsed = JSON.parse(stdout.trim());
         const all = Array.isArray(parsed) ? parsed : [parsed];
-        // Only show Zebra printers (ZDesigner drivers)
-        const printers = all.filter((p: any) => p.DriverName && p.DriverName.includes('ZDesigner'));
+        // Only show Zebra and Generic / Text Only printers
+        const printers = all.filter((p: any) => p.DriverName && (
+          p.DriverName.includes('ZDesigner') || 
+          p.DriverName.includes('Generic') || 
+          p.DriverName.includes('Text Only') || 
+          p.DriverName.includes('Solo Texto')
+        ));
         res.json(printers);
       } catch {
         res.json([]);
@@ -1097,7 +1102,7 @@ function startBridgeServices() {
   async function registerBridge() {
     try {
       const printers = await new Promise<any[]>((resolve) => {
-        exec('powershell -NoProfile -Command "Get-Printer | Where-Object { $_.DriverName -like \'*ZDesigner*\' } | Select-Object Name, PortName, DriverName | ConvertTo-Json -Compress"',
+        exec('powershell -NoProfile -Command "Get-Printer | Where-Object { $_.DriverName -like \'*ZDesigner*\' -or $_.DriverName -like \'*Generic*\' -or $_.DriverName -like \'*Text Only*\' -or $_.DriverName -like \'*Solo Texto*\' } | Select-Object Name, PortName, DriverName | ConvertTo-Json -Compress"',
           { timeout: 10000 },
           (err, stdout) => {
             if (err) { resolve([]); return; }

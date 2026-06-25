@@ -6,3 +6,187 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+/* ==========================================================================
+   Custom Theme Overrides for TraceLabel (Global App Theming)
+   ========================================================================== */
+
+/* --- 1. DARK THEME OVERRIDES --- */
+.app-theme-dark {
+  background-color: #0f172a !important; /* bg-slate-900 */
+  color: #cbd5e1 !important; /* text-slate-300 */
+}
+
+/* Panels & Cards */
+.app-theme-dark .bg-white {
+  background-color: #1e293b !important; /* bg-slate-800 */
+  color: #f1f5f9 !important;
+}
+.app-theme-dark .bg-slate-50 {
+  background-color: #0f172a !important; /* bg-slate-900 */
+}
+.app-theme-dark .bg-slate-100 {
+  background-color: #090d16 !important; /* deeper dark bg for app outer wrapper */
+}
+.app-theme-dark .bg-slate-50\/50 {
+  background-color: #0f172a !important;
+}
+
+/* Sidebar */
+.app-theme-dark aside.bg-slate-900 {
+  background-color: #090d16 !important;
+  border-right: 1px solid #1e293b !important;
+}
+
+/* Borders */
+.app-theme-dark .border-slate-200,
+.app-theme-dark .border-b-2.border-slate-200,
+.app-theme-dark .border-t,
+.app-theme-dark .border-r,
+.app-theme-dark .border-b {
+  border-color: #1e293b !important; /* border-slate-800 */
+}
+
+/* Texts */
+.app-theme-dark .text-slate-800 {
+  color: #f8fafc !important; /* white/slate-50 text */
+}
+.app-theme-dark .text-slate-700 {
+  color: #cbd5e1 !important; /* slate-300 */
+}
+.app-theme-dark .text-slate-550 {
+  color: #f8fafc !important;
+}
+.app-theme-dark .text-slate-500 {
+  color: #94a3b8 !important; /* slate-400 */
+}
+.app-theme-dark .text-slate-400 {
+  color: #64748b !important;
+}
+
+/* Hover States */
+.app-theme-dark .hover\:bg-slate-50:hover,
+.app-theme-dark .hover\:bg-slate-100:hover {
+  background-color: #334155 !important; /* hover:bg-slate-700 */
+}
+
+/* Inputs, Selects, Textareas */
+.app-theme-dark input:not([type="checkbox"]):not([type="radio"]),
+.app-theme-dark select,
+.app-theme-dark textarea {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+.app-theme-dark input::placeholder,
+.app-theme-dark textarea::placeholder {
+  color: #475569 !important;
+}
+
+/* Headers */
+.app-theme-dark header.bg-white {
+  background-color: #0f172a !important;
+  border-bottom: 1px solid #1e293b !important;
+}
+
+
+/* --- 2. GLASS THEME OVERRIDES --- */
+.app-theme-glass {
+  background: radial-gradient(circle at top left, #1e1b4b, #09090b) !important;
+  color: #cbd5e1 !important;
+}
+
+/* Layouts & Backings */
+.app-theme-glass .bg-slate-100 {
+  background: transparent !important;
+}
+.app-theme-glass .bg-slate-50 {
+  background: rgba(15, 23, 42, 0.35) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+.app-theme-glass .bg-slate-50\/50 {
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+/* Glass Panels */
+.app-theme-glass .bg-white {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #f8fafc !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25) !important;
+}
+
+/* Sidebar */
+.app-theme-glass aside.bg-slate-900 {
+  background: rgba(0, 0, 0, 0.4) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Borders */
+.app-theme-glass .border-slate-200,
+.app-theme-glass .border-t,
+.app-theme-glass .border-r,
+.app-theme-glass .border-b,
+.app-theme-glass .border-b-2.border-slate-200 {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Texts */
+.app-theme-glass .text-slate-800 {
+  color: #ffffff !important;
+}
+.app-theme-glass .text-slate-700 {
+  color: #e2e8f0 !important;
+}
+.app-theme-glass .text-slate-555 {
+  color: #ffffff !important;
+}
+.app-theme-glass .text-slate-500 {
+  color: #cbd5e1 !important;
+}
+.app-theme-glass .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+/* Hover States */
+.app-theme-glass .hover\:bg-slate-50:hover,
+.app-theme-glass .hover\:bg-slate-100:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Inputs, Selects, Textareas */
+.app-theme-glass input:not([type="checkbox"]):not([type="radio"]),
+.app-theme-glass select,
+.app-theme-glass textarea {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+}
+.app-theme-glass input::placeholder,
+.app-theme-glass textarea::placeholder {
+  color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Headers */
+.app-theme-glass header.bg-white {
+  background-color: rgba(15, 23, 42, 0.2) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* --- 3. GENERAL ADJUSTMENTS --- */
+.app-theme-dark label, .app-theme-glass label {
+  color: #cbd5e1 !important;
+}
+.app-theme-dark .text-slate-900, .app-theme-glass .text-slate-900 {
+  color: #ffffff !important;
+}
+.app-theme-dark option, .app-theme-glass option {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+}

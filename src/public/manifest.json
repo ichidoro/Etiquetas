@@ -1,0 +1,24 @@
+{
+  "name": "TraceLabel - Etiquetas y Trazabilidad",
+  "short_name": "TraceLabel",
+  "description": "Sistema de gestión, diseño e impresión de etiquetas Zebra",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}

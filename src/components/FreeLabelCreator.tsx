@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import {
   Type, Calendar, Minus, Hash, Plus, Trash2, Save, FolderOpen,
   Printer, Download, AlignLeft, AlignCenter, AlignRight, Bold,
-  GripVertical, Copy, Check, Code, Move, X, Ruler,
+  GripVertical, Copy, Check, Code, Move, X,
 } from "lucide-react";
 import { LabelFormat } from "../types";
 import { isRunningOnCloud, discoverBridgeUrl, fetchPrinters, sendPrintJob, recordPrint } from "../utils/printBridge";
@@ -152,20 +152,18 @@ function generateFreeZpl(
 
   const totalPw = Math.max(labelW, labelW * cols + gapDots * Math.max(0, cols - 1) + marginL + marginR);
 
-  // ── Total page height: all rows + vertical gaps between them ──
-  const ll = rows * labelH + Math.max(0, rows - 1) * vGapDots;
+  // ── Total page height: margins + all rows + vertical gaps between them ──
+  const ll = mmToDots(format.marginTop || 0, dpi) + rows * labelH + Math.max(0, rows - 1) * vGapDots + mmToDots(format.marginBottom || 0, dpi);
 
   const today = formatDDMMYYYY(new Date());
 
-  // ── Single ^XA..^XZ block with all rows and columns ──
-  // Match EXACTLY the same ZPL setup as the barcode module (which prints correctly)
-  // NOTE: ^LS is NOT used here — column positioning is handled via marginLeft + colOffsetX
-  // ^LT is used for vertical fine-tuning only
   let zpl = "^XA\n";
   zpl += `^PW${totalPw}\n`;
   zpl += `^LL${ll}\n`;
   zpl += `~SD${format.darkness}\n`;
   zpl += `^PR${format.printSpeed}\n`;
+  const shiftDots = Math.round(-(format.labelShift || 0) * dpmm);
+  if (shiftDots !== 0) zpl += `^LS${shiftDots}\n`;
   const topDots = Math.round((format.labelTop || 0) * dpmm);
   if (topDots !== 0) zpl += `^LT${topDots}\n`;
 
@@ -176,7 +174,7 @@ function generateFreeZpl(
     const rowOffsetY = row * (labelH + vGapDots);
 
     for (let col = 0; col < cols; col++) {
-      const colOffsetX = marginL + col * (labelW + gapDots);
+      const colOffsetX = col * (labelW + gapDots);
 
       for (const el of elements) {
         const xDots = colOffsetX + mmToDots(el.x, dpi);
@@ -186,7 +184,7 @@ function generateFreeZpl(
 
         if (el.type === "line") {
           const lineWidth = usableW;
-          zpl += `^FO${xDots},${yDots}^GB${lineWidth},1,1^FS\n`;
+          zpl += `^FO${colOffsetX + marginL},${yDots}^GB${lineWidth},1,1^FS\n`;
           continue;
         }
 
@@ -194,12 +192,13 @@ function generateFreeZpl(
         if (el.type === "date") text = today;
         if (el.type === "number") text = String(startNumber).padStart(el.content.length || 4, "0");
 
-        const fontCmd = `^A0N,${fontH},${fontW}`;
+        const orientation = format.orientation || 'N';
+        const fontCmd = `^A0${orientation},${fontH},${fontW}`;
 
         if (el.align === "C") {
-          zpl += `^FO${colOffsetX},${yDots}^FB${usableW},1,0,C,0${fontCmd}^FD${text}^FS\n`;
+          zpl += `^FO${colOffsetX + marginL},${yDots}^FB${usableW},1,0,C,0${fontCmd}^FD${text}^FS\n`;
         } else if (el.align === "R") {
-          zpl += `^FO${colOffsetX},${yDots}^FB${usableW},1,0,R,0${fontCmd}^FD${text}^FS\n`;
+          zpl += `^FO${colOffsetX + marginL},${yDots}^FB${usableW},1,0,R,0${fontCmd}^FD${text}^FS\n`;
         } else {
           zpl += `^FO${xDots},${yDots}${fontCmd}^FD${text}^FS\n`;
         }
@@ -238,16 +237,23 @@ function FreeLabelPreview({
   const gapMm = format.horizontalGap || 2;
   const vGapMm = format.verticalGap || 2;
 
-  const totalWidthMm = format.width * cols + gapMm * Math.max(0, cols - 1);
-  const totalHeightMm = format.height * rows + vGapMm * Math.max(0, rows - 1);
+  const paperWidthMm =
+    format.marginLeft +
+    cols * format.width +
+    Math.max(0, cols - 1) * gapMm +
+    format.marginRight;
 
-  const scale = Math.min(700 / totalWidthMm, 500 / totalHeightMm);
+  const paperHeightMm =
+    format.marginTop +
+    rows * format.height +
+    Math.max(0, rows - 1) * vGapMm +
+    format.marginBottom;
+
+  const scale = Math.min((700 - 40) / paperWidthMm, (500 - 40) / (paperHeightMm || 1));
+  const mmToPx = (mm: number) => mm * scale;
+
   const singleW = format.width * scale;
   const singleH = format.height * scale;
-  const gapPx = gapMm * scale;
-  const vGapPx = vGapMm * scale;
-  const gridW = singleW * cols + gapPx * Math.max(0, cols - 1);
-  const gridH = singleH * rows + vGapPx * Math.max(0, rows - 1);
 
   const pML = format.marginLeft * scale;
   const pMR = format.marginRight * scale;
@@ -323,14 +329,15 @@ function FreeLabelPreview({
     <div className="flex flex-col items-center gap-2">
       <div
         className="relative bg-slate-100 rounded-lg p-3 border border-slate-200"
-        style={{ width: gridW + 44, height: gridH + 44 }}
+        style={{ width: mmToPx(paperWidthMm) + 44, height: mmToPx(paperHeightMm) + 44 }}
         onClick={() => onSelectElement(null)}
       >
-        <div className="relative" style={{ width: gridW + 20, height: gridH + 20, paddingTop: '20px', paddingLeft: '20px' }} ref={containerRef}>
+        <div className="relative" style={{ width: mmToPx(paperWidthMm) + 20, height: mmToPx(paperHeightMm) + 20, paddingTop: '20px', paddingLeft: '20px' }} ref={containerRef}>
           {/* Horizontal Ruler (Top) */}
-          <div className="absolute top-0 left-[20px] h-[20px] overflow-visible" style={{ width: singleW }}>
-            <svg width={singleW} height="20" className="overflow-visible select-none">
-              {Array.from({ length: format.width + 1 }).map((_, mm) => {
+          <div className="absolute top-0 left-[20px] h-[20px] overflow-visible" style={{ width: mmToPx(paperWidthMm) }}>
+            <svg width={mmToPx(paperWidthMm)} height="20" className="overflow-visible select-none">
+              {Array.from({ length: Math.ceil(paperWidthMm) + 1 }).map((_, mm) => {
+                if (mm > paperWidthMm) return null;
                 const x = mm * scale;
                 let h = 3;
                 let showLabel = false;
@@ -348,9 +355,10 @@ function FreeLabelPreview({
           </div>
 
           {/* Vertical Ruler (Left) */}
-          <div className="absolute top-[20px] left-0 w-[20px] overflow-visible" style={{ height: singleH }}>
-            <svg width="20" height={singleH} className="overflow-visible select-none">
-              {Array.from({ length: format.height + 1 }).map((_, mm) => {
+          <div className="absolute top-[20px] left-0 w-[20px] overflow-visible" style={{ height: mmToPx(paperHeightMm) }}>
+            <svg width="20" height={mmToPx(paperHeightMm)} className="overflow-visible select-none">
+              {Array.from({ length: Math.ceil(paperHeightMm) + 1 }).map((_, mm) => {
+                if (mm > paperHeightMm) return null;
                 const y = mm * scale;
                 let w = 3;
                 let showLabel = false;
@@ -367,98 +375,109 @@ function FreeLabelPreview({
             </svg>
           </div>
 
-          {Array.from({ length: rows }).map((_, row) =>
-            Array.from({ length: cols }).map((_, col) => {
-              const offsetX = 20 + col * (singleW + gapPx);
-              const offsetY = 20 + row * (singleH + vGapPx);
-              const isFirstLabel = row === 0 && col === 0;
+          {/* Backing paper */}
+          <div
+            className="bg-[#e0e0e0] absolute shadow-inner border border-slate-300 overflow-visible rounded-sm"
+            style={{
+              left: '20px',
+              top: '20px',
+              width: `${mmToPx(paperWidthMm)}px`,
+              height: `${mmToPx(paperHeightMm)}px`,
+            }}
+          >
+            {Array.from({ length: rows }).map((_, row) =>
+              Array.from({ length: cols }).map((_, col) => {
+                const labelLeftPx = mmToPx(format.marginLeft + col * (format.width + gapMm));
+                const labelTopPx = mmToPx(format.marginTop + row * (format.height + vGapMm));
+                const isFirstLabel = row === 0 && col === 0;
 
-              return (
-                <div
-                  key={`${row}-${col}`}
-                  className={`absolute bg-white border ${isFirstLabel ? "border-blue-300 shadow-md" : "border-slate-300"} rounded-sm overflow-hidden`}
-                  style={{ left: offsetX, top: offsetY, width: singleW, height: singleH }}
-                >
-                  {/* Grid dots */}
-                  {isFirstLabel && gridDots.map((dot, i) => (
-                    <div
-                      key={i}
-                      className="absolute rounded-full bg-slate-200"
-                      style={{ left: dot.x - 0.5, top: dot.y - 0.5, width: 1, height: 1 }}
-                    />
-                  ))}
+                return (
+                  <div
+                    key={`${row}-${col}`}
+                    className={`absolute bg-white border ${isFirstLabel ? "border-blue-300 shadow-md ring-1 ring-blue-100" : "border-slate-200"} rounded-sm overflow-hidden`}
+                    style={{ left: `${labelLeftPx}px`, top: `${labelTopPx}px`, width: singleW, height: singleH }}
+                  >
+                    {/* Grid dots */}
+                    {isFirstLabel && gridDots.map((dot, i) => (
+                      <div
+                        key={i}
+                        className="absolute rounded-full bg-slate-200"
+                        style={{ left: dot.x - 0.5, top: dot.y - 0.5, width: 1, height: 1 }}
+                      />
+                    ))}
 
-                  {/* Margin guides */}
-                  {isFirstLabel && (
-                    <div
-                      className="absolute border border-dashed border-blue-200/50 pointer-events-none"
-                      style={{ left: pML, top: pMT, width: usableW, height: usableH }}
-                    />
-                  )}
+                    {/* Margin guides */}
+                    {isFirstLabel && (
+                      <div
+                        className="absolute border border-dashed border-blue-200/50 pointer-events-none"
+                        style={{ left: pML, top: pMT, width: usableW, height: usableH }}
+                      />
+                    )}
 
-                  {/* Elements */}
-                  {elements.map((el) => {
-                    const color = ELEMENT_COLORS[el.type] || ELEMENT_COLORS.text;
-                    const isSelected = selectedElementId === el.id && isFirstLabel;
-                    const isBeingDragged = dragging === el.id;
+                    {/* Elements */}
+                    {elements.map((el) => {
+                      const color = ELEMENT_COLORS[el.type] || ELEMENT_COLORS.text;
+                      const isSelected = selectedElementId === el.id && isFirstLabel;
+                      const isBeingDragged = dragging === el.id;
 
-                    if (el.type === "line") {
-                      const yPx = el.y * scale;
+                      if (el.type === "line") {
+                        const yPx = (el.y - format.marginTop) * scale;
+                        return (
+                          <div
+                            key={el.id}
+                            onMouseDown={isFirstLabel ? (e) => handleMouseDown(el.id, e) : undefined}
+                            className={`absolute ${isFirstLabel ? "cursor-move" : ""}`}
+                            style={{
+                              left: pML,
+                              top: yPx - 1,
+                              width: usableW,
+                              height: 3,
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div
+                              className={`w-full h-px ${isSelected || isBeingDragged ? "bg-amber-500" : "bg-slate-400"}`}
+                              style={{ marginTop: 1 }}
+                            />
+                          </div>
+                        );
+                      }
+
+                      const fontPx = el.fontSize * scale * zebraFontRatio;
+                      const yPx = (el.y - format.marginTop) * scale;
+                      const xPx = el.align === "L" ? (el.x - format.marginLeft) * scale : pML;
+                      const width = el.align === "L" ? usableW - (el.x - format.marginLeft) * scale : usableW;
+                      const textAlign = el.align === "C" ? "center" : el.align === "R" ? "right" : "left";
+
                       return (
                         <div
                           key={el.id}
                           onMouseDown={isFirstLabel ? (e) => handleMouseDown(el.id, e) : undefined}
-                          className={`absolute ${isFirstLabel ? "cursor-move" : ""}`}
+                          className={`absolute truncate select-none ${
+                            isFirstLabel ? `cursor-move border ${isSelected || isBeingDragged ? `${color.border} ${color.bg}` : "border-transparent hover:border-slate-300"}` : ""
+                          }`}
                           style={{
-                            left: pML,
-                            top: yPx - 1,
-                            width: usableW,
-                            height: 3,
+                            left: xPx,
+                            top: yPx,
+                            width: width,
+                            fontSize: Math.max(6, fontPx),
+                            lineHeight: `${Math.max(8, fontPx + 2)}px`,
+                            textAlign,
+                            fontWeight: el.bold ? "bold" : "normal",
+                            color: isSelected ? color.dot : "#334155",
                           }}
                           onClick={(e) => e.stopPropagation()}
+                          title={isFirstLabel ? `Arrastra: ${el.content || ELEMENT_LABELS[el.type]}` : undefined}
                         >
-                          <div
-                            className={`w-full h-px ${isSelected || isBeingDragged ? "bg-amber-500" : "bg-slate-400"}`}
-                            style={{ marginTop: 1 }}
-                          />
+                          {getDisplayText(el)}
                         </div>
                       );
-                    }
-
-                    const fontPx = el.fontSize * scale * zebraFontRatio;
-                    const yPx = el.y * scale;
-                    const xPx = el.align === "L" ? el.x * scale : pML;
-                    const width = el.align === "L" ? usableW - (el.x * scale - pML) : usableW;
-                    const textAlign = el.align === "C" ? "center" : el.align === "R" ? "right" : "left";
-
-                    return (
-                      <div
-                        key={el.id}
-                        onMouseDown={isFirstLabel ? (e) => handleMouseDown(el.id, e) : undefined}
-                        className={`absolute truncate select-none ${
-                          isFirstLabel ? `cursor-move border ${isSelected || isBeingDragged ? `${color.border} ${color.bg}` : "border-transparent hover:border-slate-300"}` : ""
-                        }`}
-                        style={{
-                          left: xPx,
-                          top: yPx,
-                          width: width,
-                          fontSize: Math.max(6, fontPx),
-                          lineHeight: `${Math.max(8, fontPx + 2)}px`,
-                          textAlign,
-                          fontWeight: el.bold ? "bold" : "normal",
-                          color: isSelected ? color.dot : "#334155",
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                        title={isFirstLabel ? `Arrastra: ${el.content || ELEMENT_LABELS[el.type]}` : undefined}
-                      >
-                        {getDisplayText(el)}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })
-          )}
+                    })}
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
       <div className="text-[9px] text-slate-400 flex items-center gap-1">
@@ -735,79 +754,7 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
     }
   };
 
-  // ── Calibration print — generates known test pattern to diagnose clipping ──
-  const handleCalibrationPrint = async () => {
-    if (!selectedSystemPrinter) {
-      onShowToast?.("Selecciona una impresora", "error");
-      return;
-    }
-    const f = effectiveFormat;
-    const dpi = f.dpi;
-    const dpmm = dpi / 25.4;
-    const w = Math.round(f.width * dpmm);
-    const h = Math.round(f.height * dpmm);
-    const cols = f.labelsPerRow || 1;
-    const rows = f.labelsPerColumn || 1;
-    const gapD = Math.round(f.horizontalGap * dpmm);
-    const vGapD = Math.round((f.verticalGap || 2) * dpmm);
-    const mL = Math.round(f.marginLeft * dpmm);
-    const mR = Math.round((f.marginRight || 0) * dpmm);
-    const pw = Math.max(w, w * cols + gapD * Math.max(0, cols - 1) + mL + mR);
-    const ll = rows * h + Math.max(0, rows - 1) * vGapD;
-    const shiftD = Math.round((f.labelShift || 0) * dpmm);
-    const topD = Math.round((f.labelTop || 0) * dpmm);
 
-    // Build calibration ZPL — NO ^LS (columns positioned via marginLeft + colOffsetX)
-    let zpl = "^XA\n";
-    zpl += `^PW${pw}\n^LL${ll}\n~SD${f.darkness}\n^PR${f.printSpeed}\n`;
-    if (topD !== 0) zpl += `^LT${topD}\n`;
-
-    // For each column in first row, draw calibration pattern
-    for (let col = 0; col < cols; col++) {
-      const cx = mL + col * (w + gapD);
-      // Each column gets the full label width (margins are handled by cx positioning)
-      const usable = w;
-      const fontH = Math.round(2.5 * dpmm); // 2.5mm font
-      const fontW = Math.round(fontH * 0.5);
-
-      // Header text
-      zpl += `^FO${cx},${Math.round(1 * dpmm)}^A0N,${fontH},${fontW}^FDC${col+1} ${f.width}x${f.height}mm^FS\n`;
-
-      // Horizontal lines at 0%, 25%, 50%, 75%, 100% of label height
-      const percentages = [0, 10, 20, 25, 30, 40, 50, 60, 70, 75, 80, 90, 100];
-      for (const pct of percentages) {
-        const yMm = (f.height * pct) / 100;
-        const yDots = Math.round(yMm * dpmm);
-        if (yDots <= 0 || yDots >= h) continue; // skip edges
-        // Draw line
-        const thickness = (pct % 25 === 0) ? 3 : 1;
-        zpl += `^FO${cx},${yDots}^GB${usable},${thickness},${thickness}^FS\n`;
-        // Label only at 25% intervals
-        if (pct % 25 === 0) {
-          zpl += `^FO${cx + 4},${yDots + 2}^A0N,${fontH},${fontW}^FD${pct}% = ${yMm.toFixed(1)}mm (Y=${yDots})^FS\n`;
-        }
-      }
-
-      // Draw border rectangle
-      zpl += `^FO${cx},0^GB${usable},${h},2^FS\n`;
-    }
-
-    zpl += "^PQ1\n^XZ\n";
-
-    console.log(`[CALIBRATION ZPL] Format: ${f.name}, W=${f.width}mm, H=${f.height}mm, LL=${ll}, LT=${topD}`);
-    console.log(zpl);
-
-    setUsbPrinting(true);
-    try {
-      const result = await sendPrintJob(zpl, selectedSystemPrinter, localBridgeAvailable, bridgeUrl);
-      if (result.ok) onShowToast?.(`✅ Calibración enviada`, "success");
-      else onShowToast?.(result.message || "Error", "error");
-    } catch (e: any) {
-      onShowToast?.("Error: " + e.message, "error");
-    } finally {
-      setUsbPrinting(false);
-    }
-  };
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -1199,15 +1146,7 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
                   <Printer className="w-3.5 h-3.5" />
                   <span>{usbPrinting ? "..." : "Imprimir"}</span>
                 </button>
-                <button
-                  onClick={handleCalibrationPrint}
-                  disabled={usbPrinting || !selectedSystemPrinter}
-                  className="flex items-center gap-1 px-2 py-1.5 outline-none rounded bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10px] transition-colors border border-amber-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mt-3"
-                  title="Imprime patrón de calibración con líneas a 25%, 50%, 75% y 100% del alto"
-                >
-                  <Ruler className="w-3 h-3" />
-                  <span>Calibrar</span>
-                </button>
+
                 <button
                   onClick={handleDownloadZPL}
                   disabled={elements.length === 0}

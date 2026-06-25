@@ -20,7 +20,7 @@ import path from "node:path";
 import os from "node:os";
 
 const PORT = 3000;
-const CLOUD_URL = "https://zebra-bridge-pro-684852789183.us-central1.run.app";
+const CLOUD_URL = "https://etiquetas-aguacol-684852789183.us-central1.run.app";
 
 // ── Get local LAN IP address ─────────────────────────────────────────────────
 function getLocalIp() {
@@ -49,14 +49,14 @@ function setCors(res, req) {
 // ── Get Windows printers via PowerShell ──────────────────────────────────────
 function getSystemPrinters() {
   try {
-    const ps = `Get-Printer | Where-Object { $_.DriverName -like '*ZDesigner*' } | Select-Object Name, PortName, DriverName | ConvertTo-Json -Compress`;
+    const ps = `Get-Printer | Where-Object { $_.DriverName -like '*ZDesigner*' -or $_.DriverName -like '*Generic*' -or $_.DriverName -like '*Text Only*' -or $_.DriverName -like '*Solo Texto*' } | Select-Object Name, PortName, DriverName | ConvertTo-Json -Compress`;
     const raw = execSync(`powershell -NoProfile -Command "${ps}"`, {
       encoding: "utf-8",
       timeout: 10000,
     }).trim();
     
     if (!raw || raw === '') {
-      console.log("  ⚠️  No se encontraron impresoras Zebra (ZDesigner)");
+      console.log("  ⚠️  No se encontraron impresoras Zebra o genéricas");
       return [];
     }
     const parsed = JSON.parse(raw);

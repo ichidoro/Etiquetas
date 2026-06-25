@@ -60,6 +60,23 @@ export function calculateDefaultPositions(
   return positions;
 }
 
+function getBarcodeWidthDots(id: string, value: string): number {
+  const moduleWidth = 2; // Default module width used in ^BC, ^BE, ^B2
+  if (id === 'sku') {
+    // Code 128: 11 modules per char, 11 start, 11 check, 13 stop
+    return (11 * (value.length + 2) + 2) * moduleWidth;
+  }
+  if (id === 'ean13') {
+    // EAN-13: 95 modules barcode + 18 dots text offset for first digit
+    return 95 * moduleWidth + 18;
+  }
+  if (id === 'dun14') {
+    // ITF-14: 134 modules
+    return 134 * moduleWidth;
+  }
+  return 0;
+}
+
 export function generateZpl(
   sku: string,
   itemName: string,
@@ -84,8 +101,10 @@ export function generateZpl(
   const totalPw = marginLeftDots + gridWidth + marginRightDots;
   const verticalGapDots = Math.round((format.verticalGap || 2) * dpmm);
   const verticalCount = format.labelsPerColumn || 1;
-  const ll = verticalCount * labelHeightDots +
-    Math.max(0, verticalCount - 1) * verticalGapDots;
+  const ll = marginTopDots +
+    verticalCount * labelHeightDots +
+    Math.max(0, verticalCount - 1) * verticalGapDots +
+    Math.round((format.marginBottom || 0) * dpmm);
 
   const orientation = format.orientation;
   const horizontalCount = format.labelsPerRow || 1;
@@ -117,7 +136,9 @@ export function generateZpl(
     zpl += `^LL${ll}\n`;
     zpl += `~SD${format.darkness}\n`;
     zpl += `^PR${format.printSpeed}\n`;
-    // NOTE: ^LS removed — column positioning handled via marginLeft + colOffsetX
+    zpl += `^BY2\n`; // Force barcode module width to 2 dots
+    const shiftDots = Math.round(-(format.labelShift || 0) * dpmm);
+    if (shiftDots !== 0) zpl += `^LS${shiftDots}\n`;
     const topDots = Math.round((format.labelTop || 0) * dpmm);
     if (topDots !== 0) zpl += `^LT${topDots}\n`;
 
@@ -127,6 +148,10 @@ export function generateZpl(
 
         const colOffsetX = marginLeftDots + col * (labelWidthDots + gapDots);
         const rowOffsetY = row * (labelHeightDots + verticalGapDots);
+
+        // Container boundary parameters (matching DraggableLabelPreview)
+        const containerWidthDots = Math.round(format.width * 0.85 * dpmm);
+        const baseCenterDots = Math.round((format.width * 0.075) * dpmm);
 
         // Name
         if (format.showName && itemName && posMap.has('name')) {
@@ -144,13 +169,10 @@ export function generateZpl(
           const pos = posMap.get('sku')!;
           const bHeight = Math.round(pos.h * dpmm);
           const y = rowOffsetY + Math.round(pos.y * dpmm);
-          let x: number;
-          if (pos.x !== 0) {
-            x = colOffsetX + Math.round(pos.x * dpmm);
-          } else {
-            const approxBarcodeWidth = Math.min(sku.length * 22 + 40, labelWidthDots);
-            x = colOffsetX + Math.round((labelWidthDots - approxBarcodeWidth) / 2);
-          }
+          const xOffsetDots = Math.round(pos.x * dpmm);
+          const barcodeW = getBarcodeWidthDots('sku', sku);
+          const barcodePadding = Math.max(0, Math.round((containerWidthDots - barcodeW) / 2));
+          const x = colOffsetX + baseCenterDots + xOffsetDots + barcodePadding;
           zpl += `^FO${Math.max(0, x)},${y}^BC${orientation},${bHeight},Y,N,N^FD${sku}^FS\n`;
         }
 
@@ -159,16 +181,11 @@ export function generateZpl(
           const pos = posMap.get('ean13')!;
           const bHeight = Math.round(pos.h * dpmm);
           const y = rowOffsetY + Math.round(pos.y * dpmm);
-          const firstDigitOffset = 18;
-          let x: number;
-          if (pos.x !== 0) {
-            x = colOffsetX + Math.round(pos.x * dpmm);
-          } else {
-            const totalVisualWidth = 190 + firstDigitOffset;
-            const leftPadding = Math.round((labelWidthDots - totalVisualWidth) / 2);
-            x = colOffsetX + leftPadding + firstDigitOffset;
-          }
-          zpl += `^FO${Math.max(firstDigitOffset, x)},${y}^BE${orientation},${bHeight},Y,N^FD${ean13}^FS\n`;
+          const xOffsetDots = Math.round(pos.x * dpmm);
+          const barcodeW = getBarcodeWidthDots('ean13', ean13);
+          const barcodePadding = Math.max(0, Math.round((containerWidthDots - barcodeW) / 2));
+          const x = colOffsetX + baseCenterDots + xOffsetDots + barcodePadding;
+          zpl += `^FO${Math.max(0, x)},${y}^BE${orientation},${bHeight},Y,N^FD${ean13}^FS\n`;
         }
 
         // DUN14
@@ -176,13 +193,10 @@ export function generateZpl(
           const pos = posMap.get('dun14')!;
           const bHeight = Math.round(pos.h * dpmm);
           const y = rowOffsetY + Math.round(pos.y * dpmm);
-          let x: number;
-          if (pos.x !== 0) {
-            x = colOffsetX + Math.round(pos.x * dpmm);
-          } else {
-            const approxBarcodeWidth = Math.min(dun14.length * 18 + 40, labelWidthDots);
-            x = colOffsetX + Math.round((labelWidthDots - approxBarcodeWidth) / 2);
-          }
+          const xOffsetDots = Math.round(pos.x * dpmm);
+          const barcodeW = getBarcodeWidthDots('dun14', dun14);
+          const barcodePadding = Math.max(0, Math.round((containerWidthDots - barcodeW) / 2));
+          const x = colOffsetX + baseCenterDots + xOffsetDots + barcodePadding;
           zpl += `^FO${Math.max(0, x)},${y}^B2${orientation},${bHeight},Y,N,N^FD${dun14}^FS\n`;
         }
 
@@ -214,19 +228,20 @@ export function generateCalibrationZpl(format: LabelFormat): string {
   const cols = format.labelsPerRow || 1;
   const rows = format.labelsPerColumn || 1;
 
-  const pw = Math.max(lw, lw * cols + gapH * Math.max(0, cols - 1) + ml);
-  const ll = rows * lh + Math.max(0, rows - 1) * gapV;
+  const pw = ml + lw * cols + gapH * Math.max(0, cols - 1) + Math.round((format.marginRight || 0) * dpmm);
+  const ll = Math.round((format.marginTop || 0) * dpmm) + rows * lh + Math.max(0, rows - 1) * gapV + Math.round((format.marginBottom || 0) * dpmm);
 
   let z = "^XA\n";
   z += `^PW${pw}\n^LL${ll}\n~SD${format.darkness}\n^PR${format.printSpeed}\n`;
-  // NOTE: ^LS removed — column positioning handled via marginLeft + colOffsetX
+  const shiftDots = Math.round(-(format.labelShift || 0) * dpmm);
+  if (shiftDots !== 0) z += `^LS${shiftDots}\n`;
   const topDots = Math.round((format.labelTop || 0) * dpmm);
   if (topDots !== 0) z += `^LT${topDots}\n`;
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       const ox = ml + col * (lw + gapH);  // cell origin X
-      const oy = row * (lh + gapV);       // cell origin Y
+      const oy = Math.round((format.marginTop || 0) * dpmm) + row * (lh + gapV);       // cell origin Y
 
       // 1. Border rectangle (2-dot thick)
       z += `^FO${ox},${oy}^GB${lw},${lh},2^FS\n`;

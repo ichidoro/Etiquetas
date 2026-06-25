@@ -34,6 +34,7 @@ import { PrinterManager } from "./components/PrinterManager";
 import { FreeLabelCreator } from "./components/FreeLabelCreator";
 
 export default function App() {
+  const [theme, setTheme] = useState<'dark' | 'light' | 'glass'>(() => (localStorage.getItem('tracelabel-theme') as any) || 'dark');
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
   const [filterBusinessLine, setFilterBusinessLine] = useState("");
@@ -466,7 +467,7 @@ export default function App() {
   );
 
   return (
-    <div className="flex h-screen bg-slate-100 text-slate-700 font-sans overflow-hidden">
+    <div className={`flex h-screen bg-slate-100 text-slate-700 font-sans overflow-hidden app-theme-${theme}`}>
       {/* Sidebar */}
       <aside className="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0">
         <div className="p-6 text-xl font-bold border-b border-slate-800 flex items-center gap-3">
@@ -540,6 +541,25 @@ export default function App() {
             </p>
           </div>
           <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1 bg-slate-700/10 p-0.5 rounded-lg border border-slate-200 mr-2">
+              {(['dark', 'light', 'glass'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => {
+                    setTheme(t);
+                    localStorage.setItem('tracelabel-theme', t);
+                  }}
+                  className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                    theme === t
+                      ? 'bg-blue-600 text-white shadow'
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
+                  }`}
+                >
+                  {t === 'glass' ? 'Vidrio' : t === 'dark' ? 'Oscuro' : 'Claro'}
+                </button>
+              ))}
+            </div>
             {dbStatus.dbType === "turso-cloud" ? (
               <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold border border-emerald-200">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -928,7 +948,7 @@ export default function App() {
                     {/* Preview Section - Left Side */}
                     <div className="lg:col-span-6 xl:col-span-5 2xl:col-span-6">
                       <div className="sticky top-6">
-                        <LabelPreview format={labelFormat} />
+                        <LabelPreview format={labelFormat} onShowToast={showToast} />
                       </div>
                     </div>
 
@@ -1495,7 +1515,7 @@ export default function App() {
                         <Monitor className="w-6 h-6" /> Instalar en otro computador
                       </h2>
                       <p className="text-blue-100 text-sm">
-                        Instala TraceLabel Bridge en cualquier PC con impresora Zebra. Los datos se sincronizan automáticamente vía la nube.
+                        Instala TraceLabel Bridge en cualquier PC con impresora de etiquetas. Los datos se sincronizan automáticamente vía la nube.
                       </p>
                     </div>
 
@@ -1506,10 +1526,10 @@ export default function App() {
                       </h3>
                       <div className="flex items-center gap-3">
                         <code className="flex-1 bg-slate-50 px-4 py-2.5 rounded-lg border border-slate-200 text-sm text-blue-600 font-medium">
-                          https://zebra-bridge-pro-684852789183.us-central1.run.app
+                          https://etiquetas-aguacol-684852789183.us-central1.run.app
                         </code>
                         <button
-                          onClick={() => { navigator.clipboard.writeText('https://zebra-bridge-pro-684852789183.us-central1.run.app'); showToast('URL copiada', 'success'); }}
+                          onClick={() => { navigator.clipboard.writeText('https://etiquetas-aguacol-684852789183.us-central1.run.app'); showToast('URL copiada', 'success'); }}
                           className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors cursor-pointer"
                           title="Copiar URL"
                         >
@@ -1606,7 +1626,7 @@ echo [OK] Bridge anterior detenido
 REM -- 4. Descargar servidor de impresion desde la nube
 echo [..] Descargando servidor de impresion...
 if exist "%ZEBRA_DIR%\print-bridge.mjs" del "%ZEBRA_DIR%\print-bridge.mjs"
-powershell -NoProfile -Command "try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://zebra-bridge-pro-684852789183.us-central1.run.app/api/download-bridge' -OutFile '%ZEBRA_DIR%\print-bridge.mjs' -UseBasicParsing; Write-Host '[OK] Servidor descargado' } catch { Write-Host '[ERROR] No se pudo descargar'; exit 1 }"
+powershell -NoProfile -Command "try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://etiquetas-aguacol-684852789183.us-central1.run.app/api/download-bridge' -OutFile '%ZEBRA_DIR%\print-bridge.mjs' -UseBasicParsing; Write-Host '[OK] Servidor descargado' } catch { Write-Host '[ERROR] No se pudo descargar'; exit 1 }"
 if not exist "%ZEBRA_DIR%\print-bridge.mjs" (
     echo [ERROR] No se pudo descargar el servidor.
     echo    Verifica tu conexion a internet.
@@ -1663,7 +1683,7 @@ echo   Se inicia AUTOMATICAMENTE al encender el PC.
 echo   No necesitas abrir ninguna ventana.
 echo.
 echo   Abre en tu navegador:
-echo   https://zebra-bridge-pro-684852789183.us-central1.run.app
+echo   https://etiquetas-aguacol-684852789183.us-central1.run.app
 echo.
 echo   Para reinstalar, ejecuta este BAT de nuevo.
 echo ====================================================
@@ -1682,7 +1702,7 @@ timeout /t 15
                               }}
                               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
                             >
-                              <Download className="w-4 h-4" /> Descargar instalar_zebra.bat
+                              <Download className="w-4 h-4" /> Descargar instalar_tracelabel.bat
                             </button>
                             <p className="text-[10px] text-slate-400 mt-1">Doble clic para ejecutar. NO necesita Git ni npm.</p>
                           </div>
@@ -1693,7 +1713,7 @@ timeout /t 15
                           <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm flex-shrink-0">✓</div>
                           <div className="flex-1">
                             <h4 className="font-semibold text-slate-800 text-sm">¡Listo! Solo usa la URL de siempre</h4>
-                            <p className="text-xs text-slate-500">El servidor arranca solo al encender el PC (invisible, sin terminal). Abre <code className="bg-slate-100 px-1.5 py-0.5 rounded text-blue-600 font-medium">https://zebra-bridge-pro-...run.app</code> y la impresora se detectará automáticamente.</p>
+                            <p className="text-xs text-slate-500">El servidor arranca solo al encender el PC (invisible, sin terminal). Abre <code className="bg-slate-100 px-1.5 py-0.5 rounded text-blue-600 font-medium">https://etiquetas-aguacol-...run.app</code> y la impresora se detectará automáticamente.</p>
                           </div>
                         </div>
                       </div>
@@ -1730,11 +1750,16 @@ timeout /t 15
         />
       )}
 
-      {printingProduct && (
+       {printingProduct && (
         <PrintModal
           product={printingProduct}
           labelFormats={labelFormats}
           activeFormatId={activeFormatId}
+          theme={theme}
+          onChangeTheme={(t) => {
+            setTheme(t);
+            localStorage.setItem('tracelabel-theme', t);
+          }}
           onClose={() => setPrintingProduct(undefined)}
           onShowToast={showToast}
         />
@@ -1745,6 +1770,11 @@ timeout /t 15
           product={tracePrintingProduct}
           labelFormats={labelFormats}
           activeFormatId={activeFormatId}
+          theme={theme}
+          onChangeTheme={(t) => {
+            setTheme(t);
+            localStorage.setItem('tracelabel-theme', t);
+          }}
           onClose={() => setTracePrintingProduct(undefined)}
           onShowToast={showToast}
         />

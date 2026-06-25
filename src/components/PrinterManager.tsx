@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Printer, RefreshCw, Star, Check, AlertCircle, Wifi, WifiOff, Usb } from "lucide-react";
-import { isRunningOnCloud, discoverBridgeUrl, fetchPrinters as bridgeFetchPrinters } from "../utils/printBridge";
+import { isRunningOnCloud, discoverBridgeUrl, fetchPrinters as bridgeFetchPrinters, sendPrintJob } from "../utils/printBridge";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -76,6 +76,71 @@ export function PrinterManager({ onShowToast }: PrinterManagerProps) {
   const [bridgeAvailable, setBridgeAvailable] = useState(false);
   const [bridgeChecked, setBridgeChecked] = useState(false);
   const [bridgeMode, setBridgeMode] = useState<'local' | 'cloud' | 'none'>('none');
+
+  // Local state for input values of printer offsets (mapped by printer name)
+  const [offsetsInput, setOffsetsInput] = useState<Record<string, string>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("zebra-printer-offsets-inputs") || "{}");
+    } catch {
+      return {};
+    }
+  });
+  const [savingCalibration, setSavingCalibration] = useState<Record<string, boolean>>({});
+
+  const handleSaveCalibration = async (printerName: string) => {
+    const rawVal = offsetsInput[printerName] || "0";
+    const offsetDots = parseInt(rawVal, 10);
+    if (isNaN(offsetDots)) {
+      toast("El desplazamiento debe ser un número válido en puntos.", "error");
+      return;
+    }
+
+    setSavingCalibration(prev => ({ ...prev, [printerName]: true }));
+    try {
+      const zpl = `^XA^LH${offsetDots},0^JUS^XZ`;
+      let discoveredUrl: string | null = null;
+      if (onCloud) {
+        discoveredUrl = await discoverBridgeUrl();
+      }
+      const result = await sendPrintJob(zpl, printerName, true, discoveredUrl);
+      if (result.ok) {
+        const newInputs = { ...offsetsInput, [printerName]: rawVal };
+        setOffsetsInput(newInputs);
+        localStorage.setItem("zebra-printer-offsets-inputs", JSON.stringify(newInputs));
+        toast(`✅ Calibración de ${offsetDots} puntos guardada permanentemente en la memoria de "${printerName}".`, "success");
+      } else {
+        toast(`Error al enviar calibración: ${result.message}`, "error");
+      }
+    } catch (err: any) {
+      toast(`Error de conexión: ${err.message}`, "error");
+    } finally {
+      setSavingCalibration(prev => ({ ...prev, [printerName]: false }));
+    }
+  };
+
+  const handleResetCalibration = async (printerName: string) => {
+    setSavingCalibration(prev => ({ ...prev, [printerName]: true }));
+    try {
+      const zpl = `^XA^LH0,0^JUS^XZ`;
+      let discoveredUrl: string | null = null;
+      if (onCloud) {
+        discoveredUrl = await discoverBridgeUrl();
+      }
+      const result = await sendPrintJob(zpl, printerName, true, discoveredUrl);
+      if (result.ok) {
+        const newInputs = { ...offsetsInput, [printerName]: "0" };
+        setOffsetsInput(newInputs);
+        localStorage.setItem("zebra-printer-offsets-inputs", JSON.stringify(newInputs));
+        toast(`✅ Calibración de "${printerName}" restaurada a márgenes de fábrica (0 puntos).`, "success");
+      } else {
+        toast(`Error al restaurar calibración: ${result.message}`, "error");
+      }
+    } catch (err: any) {
+      toast(`Error de conexión: ${err.message}`, "error");
+    } finally {
+      setSavingCalibration(prev => ({ ...prev, [printerName]: false }));
+    }
+  };
 
   const toast = useCallback(
     (message: string, type: "success" | "error") => {
@@ -270,82 +335,132 @@ export function PrinterManager({ onShowToast }: PrinterManagerProps) {
                 return (
                   <div
                     key={p.Name}
-                    className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
+                    className={`flex flex-col p-4 rounded-xl border transition-all ${
                       isDefault
                         ? "bg-blue-50/50 border-blue-300 shadow-sm"
                         : "bg-white border-slate-200 hover:border-slate-300"
                     }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div
-                        className={`p-2 rounded-lg ${
-                          isZebra
-                            ? "bg-violet-100"
-                            : "bg-slate-100"
-                        }`}
-                      >
-                        <Printer
-                          className={`w-5 h-5 ${
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={`p-2 rounded-lg ${
                             isZebra
-                              ? "text-violet-600"
-                              : "text-slate-500"
+                              ? "bg-violet-100"
+                              : "bg-slate-100"
                           }`}
-                        />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 truncate flex items-center gap-2">
-                          <span>{p.Name}</span>
-                          {isZebra && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-violet-100 text-violet-700 rounded">
-                              ZEBRA
-                            </span>
-                          )}
-                          {p._bridgeHost && p._bridgeHost !== 'Este PC' ? (
-                            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700 rounded">
-                              {p._bridgeHost}
-                            </span>
-                          ) : (
-                            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-500 rounded">
-                              Este PC
-                            </span>
-                          )}
-                          {isDefault && (
-                            <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400 flex-shrink-0" />
-                          )}
-                        </p>
-                        <div className="flex items-center gap-3 mt-0.5">
-                          <span className="flex items-center gap-1 text-xs text-slate-400">
-                            {portIcon(p.PortName)}
-                            <span>{p.PortName}</span>
-                          </span>
-                          <span className={`text-xs font-medium ${st.color}`}>
-                            {st.text}
-                          </span>
+                        >
+                          <Printer
+                            className={`w-5 h-5 ${
+                              isZebra
+                                ? "text-violet-600"
+                                : "text-slate-500"
+                            }`}
+                          />
                         </div>
-                        <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                          <span>{p.DriverName}</span>
-                        </p>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-800 truncate flex items-center gap-2">
+                            <span>{p.Name}</span>
+                            {isZebra && (
+                              <span className="px-1.5 py-0.5 text-[10px] font-bold bg-violet-100 text-violet-700 rounded">
+                                ZEBRA
+                              </span>
+                            )}
+                            {p._bridgeHost && p._bridgeHost !== 'Este PC' ? (
+                              <span className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700 rounded">
+                                {p._bridgeHost}
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-500 rounded">
+                                Este PC
+                              </span>
+                            )}
+                            {isDefault && (
+                              <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400 flex-shrink-0" />
+                            )}
+                          </p>
+                          <div className="flex items-center gap-3 mt-0.5">
+                            <span className="flex items-center gap-1 text-xs text-slate-400">
+                              {portIcon(p.PortName)}
+                              <span>{p.PortName}</span>
+                            </span>
+                            <span className={`text-xs font-medium ${st.color}`}>
+                              {st.text}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                            <span>{p.DriverName}</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Set as default button */}
+                      <div className="flex-shrink-0 ml-3">
+                        {isDefault ? (
+                          <span className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-100 rounded-lg">
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Predeterminada</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleSetDefault(p.Name)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Star className="w-3.5 h-3.5" />
+                            <span>Predeterminar</span>
+                          </button>
+                        )}
                       </div>
                     </div>
 
-                    {/* Set as default button */}
-                    <div className="flex-shrink-0 ml-3">
-                      {isDefault ? (
-                        <span className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-100 rounded-lg">
-                          <Check className="w-3.5 h-3.5" />
-                          <span>Predeterminada</span>
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleSetDefault(p.Name)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <Star className="w-3.5 h-3.5" />
-                          <span>Predeterminar</span>
-                        </button>
-                      )}
-                    </div>
+                    {/* Calibration Section */}
+                    {isZebra && (
+                      <div className="mt-3 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 p-2.5 rounded-lg border border-slate-100">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <label htmlFor={`cal-${p.Name}`} className="text-xs font-semibold text-slate-700">
+                              Calibración Física:
+                            </label>
+                            <input
+                              id={`cal-${p.Name}`}
+                              type="number"
+                              className="w-20 px-2 py-0.5 text-xs border border-slate-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
+                              placeholder="Ej: 120"
+                              value={offsetsInput[p.Name] || "0"}
+                              onChange={(e) => setOffsetsInput({ ...offsetsInput, [p.Name]: e.target.value })}
+                            />
+                            <span className="text-[10px] text-slate-500 font-semibold bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                              puntos / dots
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              {`(${((Number(offsetsInput[p.Name]) || 0) / 8).toFixed(1)} mm)`}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-400">
+                            Ajusta el margen izquierdo inicial de la impresora.
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={savingCalibration[p.Name]}
+                            onClick={() => handleSaveCalibration(p.Name)}
+                            className="inline-flex items-center px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded shadow-sm disabled:opacity-50 transition-colors cursor-pointer"
+                          >
+                            {savingCalibration[p.Name] ? "Grabando..." : "Grabar en Memoria"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={savingCalibration[p.Name]}
+                            onClick={() => handleResetCalibration(p.Name)}
+                            className="inline-flex items-center px-2.5 py-1 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded border border-slate-200 transition-colors cursor-pointer"
+                          >
+                            Restaurar a 0
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -363,41 +478,89 @@ export function PrinterManager({ onShowToast }: PrinterManagerProps) {
           <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
             {history.map((name) => {
               const connected = isConnected(name);
+              const isZebra = name.toLowerCase().includes("zebra");
               return (
                 <div
                   key={name}
-                  className="flex items-center justify-between px-4 py-3"
+                  className="flex flex-col px-4 py-3 gap-2"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span
-                      className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                        connected ? "bg-emerald-500" : "bg-slate-300"
-                      }`}
-                    />
-                    <span className="text-sm text-slate-700 truncate font-mono">
-                      {name}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span
-                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                        connected
-                          ? "bg-emerald-50 text-emerald-600"
-                          : "bg-slate-100 text-slate-400"
-                      }`}
-                    >
-                      {connected ? "Conectada" : "No detectada"}
-                    </span>
-                    {connected && defaultPrinter !== name && (
-                      <button
-                        type="button"
-                        onClick={() => handleSetDefault(name)}
-                        className="text-[10px] text-blue-500 hover:text-blue-700 underline cursor-pointer transition-colors"
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                          connected ? "bg-emerald-500" : "bg-slate-300"
+                        }`}
+                      />
+                      <span className="text-sm text-slate-700 truncate font-mono">
+                        {name}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                          connected
+                            ? "bg-emerald-50 text-emerald-600"
+                            : "bg-slate-100 text-slate-400"
+                        }`}
                       >
-                        <span>Predeterminar</span>
-                      </button>
-                    )}
+                        {connected ? "Conectada" : "No detectada"}
+                      </span>
+                      {connected && defaultPrinter !== name && (
+                        <button
+                          type="button"
+                          onClick={() => handleSetDefault(name)}
+                          className="text-[10px] text-blue-500 hover:text-blue-700 underline cursor-pointer transition-colors"
+                        >
+                          <span>Predeterminar</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Calibration section in history if it's a Zebra printer */}
+                  {isZebra && (
+                    <div className="mt-1 pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-2">
+                          <label htmlFor={`cal-hist-${name}`} className="text-[11px] font-semibold text-slate-600">
+                            Calibración Física:
+                          </label>
+                          <input
+                            id={`cal-hist-${name}`}
+                            type="number"
+                            className="w-16 px-1.5 py-0.5 text-[11px] border border-slate-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
+                            placeholder="Ej: 120"
+                            value={offsetsInput[name] || "0"}
+                            onChange={(e) => setOffsetsInput({ ...offsetsInput, [name]: e.target.value })}
+                          />
+                          <span className="text-[9px] text-slate-500 font-semibold bg-slate-100 px-1 py-0.5 rounded border border-slate-200">
+                            dots
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-mono">
+                            {`(${((Number(offsetsInput[name]) || 0) / 8).toFixed(1)} mm)`}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={savingCalibration[name]}
+                          onClick={() => handleSaveCalibration(name)}
+                          className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded shadow-sm disabled:opacity-50 transition-colors cursor-pointer"
+                        >
+                          {savingCalibration[name] ? "Grabando..." : "Grabar"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={savingCalibration[name]}
+                          onClick={() => handleResetCalibration(name)}
+                          className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded border border-slate-200 transition-colors cursor-pointer"
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
