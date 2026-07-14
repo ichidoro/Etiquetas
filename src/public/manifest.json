@@ -1,6 +1,6 @@
 {
-  "name": "TraceLabel - Etiquetas y Trazabilidad",
-  "short_name": "TraceLabel",
+  "name": "AquaOps - Etiquetas y Trazabilidad",
+  "short_name": "AquaOps",
   "description": "Sistema de gestión, diseño e impresión de etiquetas Zebra",
   "start_url": "/",
   "display": "standalone",

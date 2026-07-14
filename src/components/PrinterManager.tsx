@@ -250,17 +250,6 @@ export function PrinterManager({ onShowToast }: PrinterManagerProps) {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={fetchPrinters}
-          disabled={loading}
-          className="inline-flex items-center px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50"
-        >
-          <RefreshCw
-            className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`}
-          />
-          <span>Detectar Impresoras</span>
-        </button>
       </div>
 
       {/* Default Printer Banner */}
@@ -296,7 +285,7 @@ export function PrinterManager({ onShowToast }: PrinterManagerProps) {
       )}
 
       {/* Loading */}
-      {loading && (
+      {loading && printers.length === 0 && (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-4 border-violet-200 border-t-violet-500 rounded-full animate-spin" />
@@ -308,8 +297,8 @@ export function PrinterManager({ onShowToast }: PrinterManagerProps) {
       )}
 
       {/* Printers detected now */}
-      {!loading && (
-        <div>
+      {(!loading || printers.length > 0) && (
+        <div className={loading ? 'opacity-60 transition-opacity pointer-events-none' : ''}>
           <h3 className="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">
             <span>
               Impresoras detectadas ({printers.length})
@@ -470,7 +459,7 @@ export function PrinterManager({ onShowToast }: PrinterManagerProps) {
       )}
 
       {/* History of previously used printers */}
-      {!loading && history.length > 0 && (
+      {(!loading || history.length > 0) && history.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">
             <span>Historial de impresoras</span>

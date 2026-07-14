@@ -494,6 +494,12 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
   const [activeFormatId, setActiveFormatId] = useState(labelFormats[0]?.id || "");
   const currentFormat = labelFormats.find((f) => f.id === activeFormatId) || labelFormats[0];
 
+  // ── Print state
+  const [copies, setCopies] = useState(() => {
+    const initialFormat = labelFormats.find((f) => f.id === labelFormats[0]?.id) || labelFormats[0];
+    return initialFormat?.labelsPerRow || 1;
+  });
+
   // ── Local fine-tune overrides for ^LS and ^LT (applied on top of format values)
   const [localShift, setLocalShift] = useState<number>(currentFormat?.labelShift || 0);
   const [localTop, setLocalTop] = useState<number>(currentFormat?.labelTop || 0);
@@ -501,7 +507,16 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
   useEffect(() => {
     setLocalShift(currentFormat?.labelShift || 0);
     setLocalTop(currentFormat?.labelTop || 0);
-  }, [activeFormatId, currentFormat?.labelShift, currentFormat?.labelTop]);
+
+    // Adjust copies to be a multiple of columns when format changes
+    const colsCount = currentFormat?.labelsPerRow || 1;
+    setCopies((prev) => {
+      if (prev % colsCount !== 0) {
+        return Math.ceil(prev / colsCount) * colsCount;
+      }
+      return prev;
+    });
+  }, [activeFormatId, currentFormat]);
   // Effective format: merge local overrides
   const effectiveFormat = useMemo(() => ({
     ...currentFormat,
@@ -509,13 +524,12 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
     labelTop: localTop,
   }), [currentFormat, localShift, localTop]);
 
+  const cols = effectiveFormat?.labelsPerRow || 1;
+
   // ── Elements
   const [elements, setElements] = useState<LabelElement[]>([]);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [startNumber, setStartNumber] = useState(1);
-
-  // ── Print state
-  const [copies, setCopies] = useState(1);
   const [systemPrinters, setSystemPrinters] = useState<{ Name: string; PortName: string; DriverName: string }[]>([]);
   const [selectedSystemPrinter, setSelectedSystemPrinter] = useState("");
   const [usbPrinting, setUsbPrinting] = useState(false);
@@ -1095,8 +1109,13 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
                 <input
                   id="free-copies"
                   aria-label="Cantidad de copias"
-                  type="number" min={1} max={999} value={copies}
-                  onChange={(e) => setCopies(Math.max(1, Number(e.target.value)))}
+                  type="number" min={cols} max={999} step={cols} value={copies}
+                  onChange={(e) => setCopies(Number(e.target.value))}
+                  onBlur={() => {
+                    if (copies % cols !== 0) {
+                      setCopies(Math.ceil(copies / cols) * cols);
+                    }
+                  }}
                   className="w-full rounded border border-slate-600 bg-slate-700 text-[11px] px-2 py-1.5 text-white outline-none font-semibold"
                 />
               </div>
@@ -1164,6 +1183,12 @@ export function FreeLabelCreator({ labelFormats, onShowToast }: FreeLabelCreator
                 </button>
               </div>
             </div>
+
+            {cols > 1 && (
+              <div className="mt-2 text-[9px] text-emerald-400 font-semibold flex items-center gap-1.5 border-t border-slate-700/50 pt-1.5">
+                <span>✅ Impresión configurada en múltiplos de {cols} para este rollo. Se imprimirán {copies} etiquetas ({Math.ceil(copies / cols)} {Math.ceil(copies / cols) === 1 ? 'fila completa' : 'filas completas'}), evitando dejar espacios vacíos en la bobina.</span>
+              </div>
+            )}
 
             {/* Info bar */}
             <div className="flex items-center justify-between mt-1.5 text-[9px] text-slate-500">

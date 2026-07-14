@@ -58,6 +58,17 @@ export function PrintModal({
     theme === 'glass' ? 'bg-slate-950/75 backdrop-blur-md text-slate-100 border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)]' :
     'bg-slate-50 text-slate-800 border border-slate-200 shadow-2xl';
 
+  const modalHeaderBg =
+    theme === 'dark' ? 'bg-slate-950 border-b border-slate-800' :
+    theme === 'glass' ? 'bg-white/5 backdrop-blur-md border-b border-white/5' :
+    'bg-slate-100/80 border-b border-slate-200';
+
+  const modalHeaderTitle =
+    theme === 'light' ? 'text-slate-800' : 'text-white';
+
+  const modalHeaderDesc =
+    theme === 'light' ? 'text-slate-500' : 'text-slate-400';
+
   const col1Bg = 
     theme === 'dark' ? 'bg-slate-950/40 border-r border-slate-800' :
     theme === 'glass' ? 'bg-white/5 border-r border-white/5' :
@@ -92,7 +103,10 @@ export function PrintModal({
     }
   );
 
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState(() => {
+    const initialFormat = labelFormats.find((f) => f.id === initialFormatId) || labelFormats[0];
+    return initialFormat?.labelsPerRow || 1;
+  });
 
   // Sync when activeFormatId changes — load saved or defaults
   useEffect(() => {
@@ -111,7 +125,16 @@ export function PrintModal({
       setElementPositions(calculateDefaultPositions(currentFormatForCalc, product));
       setIsCustomPositions(false);
     }
-  }, [activeFormatId]);
+
+    // Force quantity to be a multiple of the new format's columns
+    const colsCount = baseLabelFormat?.labelsPerRow || 1;
+    setQuantity((prev) => {
+      if (prev % colsCount !== 0) {
+        return Math.ceil(prev / colsCount) * colsCount;
+      }
+      return prev;
+    });
+  }, [activeFormatId, baseLabelFormat]);
 
   const [copied, setCopied] = useState(false);
   const [systemPrinters, setSystemPrinters] = useState<{Name: string; PortName: string; DriverName: string}[]>([]);
@@ -194,35 +217,53 @@ export function PrintModal({
   };
 
   useEffect(() => {
+    let isMounted = true;
     const savedPrinter = loadDefaultPrinter();
 
-    const loadPrinters = async () => {
+    const loadPrinters = async (isBackground = false) => {
       let discoveredUrl: string | null = null;
       if (onCloud) {
         discoveredUrl = await discoverBridgeUrl();
+        if (!isMounted) return;
         setBridgeUrl(discoveredUrl);
         setLocalBridgeAvailable(!!discoveredUrl);
       }
 
       const printers = await fetchPrinters(!!discoveredUrl, discoveredUrl);
+      if (!isMounted) return;
       setSystemPrinters(printers);
 
       if (printers.length > 0) {
-        if (savedPrinter && printers.some(p => p.Name === savedPrinter)) {
-          setSelectedSystemPrinter(savedPrinter);
-        } else {
+        setSelectedSystemPrinter(current => {
+          // Keep current selection if it is still online
+          if (current && printers.some(p => p.Name === current)) {
+            return current;
+          }
+          // Otherwise fallback to saved default
+          if (savedPrinter && printers.some(p => p.Name === savedPrinter)) {
+            return savedPrinter;
+          }
+          // Or find any Zebra
           const zebra = printers.find(p => p.DriverName?.toLowerCase().includes('zebra') || p.Name?.toLowerCase().includes('zebra'));
-          if (zebra) setSelectedSystemPrinter(zebra.Name);
-          else setSelectedSystemPrinter(printers[0].Name);
-        }
+          return zebra ? zebra.Name : printers[0].Name;
+        });
       } else if (onCloud && !discoveredUrl && webUsbSupported) {
         setUseWebUsb(true);
         const paired = await getAlreadyPairedPrinters();
-        if (paired.length > 0) setWebUsbDevice(paired[0]);
+        if (isMounted && paired.length > 0) setWebUsbDevice(paired[0]);
       }
     };
 
-    loadPrinters();
+    loadPrinters(false);
+
+    const interval = setInterval(() => {
+      loadPrinters(true);
+    }, 10000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   // Save printer as default when changed
@@ -280,6 +321,15 @@ export function PrintModal({
       if (!selectedSystemPrinter) { onShowToast?.('Selecciona una impresora del sistema', 'error'); return; }
       setUsbPrinting(true);
       const result = await sendPrintJob(zplCode, selectedSystemPrinter, localBridgeAvailable, bridgeUrl);
+      const printedCodes: string[] = [];
+      if (selectedParts.sku && product.sku) printedCodes.push("SKU");
+      if (selectedParts.ean13 && product.ean13) printedCodes.push("EAN13");
+      if (selectedParts.dun14 && product.dun14) printedCodes.push("DUN14");
+
+      const cols = currentFormat.labelsPerRow || 1;
+      const physical = Math.ceil(quantity / cols) * cols;
+      const waste = Math.max(0, physical - quantity);
+
       recordPrint({
         productName: product.item_name,
         productSku: product.sku,
@@ -287,6 +337,12 @@ export function PrintModal({
         mode: isRunningOnCloud() ? 'cloud' : 'local',
         copies: quantity,
         status: result.ok ? 'success' : 'error',
+        label_type: "barras",
+        format_id: activeFormatId,
+        labels_per_row: cols,
+        physical_labels: physical,
+        waste_labels: waste,
+        printed_barcodes: printedCodes.join(","),
         details: result.ok ? undefined : result.message,
       });
       if (result.ok) onShowToast?.(`✅ ${result.message}`, 'success');
@@ -361,15 +417,15 @@ export function PrintModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm print:hidden">
       <div className={`rounded-xl overflow-hidden flex flex-col max-h-[92vh] mx-4 w-full max-w-5xl ${themeBg}`}>
         {/* Header */}
-        <div className="px-5 py-3 border-b border-slate-700/50 flex justify-between items-center bg-gradient-to-r from-slate-800 to-slate-900">
+        <div className={`px-5 py-3 flex justify-between items-center ${modalHeaderBg}`}>
           <div className="min-w-0">
-            <h2 className="text-sm font-bold text-white tracking-wide">
+            <h2 className={`text-sm font-bold tracking-wide ${modalHeaderTitle}`}>
               Imprimir: {product.sku}
             </h2>
-            <p className="text-[11px] text-slate-400 mt-0.5 truncate">{product.item_name}</p>
+            <p className={`text-[11px] mt-0.5 truncate ${modalHeaderDesc}`}>{product.item_name}</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1 bg-slate-700/60 p-0.5 rounded-lg border border-slate-600/40">
+            <div className={`flex items-center gap-1 p-0.5 rounded-lg border ${theme === 'light' ? 'bg-slate-200/65 border-slate-300/60' : 'bg-slate-700/60 border-slate-600/40'}`}>
               {(['dark', 'light', 'glass'] as const).map((t) => (
                 <button
                   key={t}
@@ -381,6 +437,8 @@ export function PrintModal({
                   className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase transition-all cursor-pointer ${
                     theme === t
                       ? 'bg-blue-600 text-white shadow'
+                      : theme === 'light'
+                      ? 'text-slate-600 hover:text-slate-950 hover:bg-white/50'
                       : 'text-slate-300 hover:text-white hover:bg-slate-700/40'
                   }`}
                 >
@@ -388,7 +446,7 @@ export function PrintModal({
                 </button>
               ))}
             </div>
-            <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors p-1 flex-shrink-0 cursor-pointer">
+            <button onClick={onClose} className={`transition-colors p-1 flex-shrink-0 cursor-pointer ${theme === 'light' ? 'text-slate-400 hover:text-slate-800' : 'text-slate-400 hover:text-white'}`}>
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -552,24 +610,23 @@ export function PrintModal({
 
             {/* Quantity selector */}
             <div>
-              <label htmlFor="print-copies" className={`block text-[10px] font-semibold uppercase tracking-wider mb-1 ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>¿Cuántas etiquetas desea imprimir?</label>
+              <label htmlFor="print-copies" className={`block text-[10px] font-semibold uppercase tracking-wider mb-1 ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>¿Cuántas etiquetas desea imprimir? (Múltiplos de {cols})</label>
               <input
                 id="print-copies"
                 aria-label="Cantidad de copias"
-                type="number" min="1" max="999"
+                type="number" min={cols} max="999" step={cols}
                 value={quantity}
                 onChange={(e) => setQuantity(Number(e.target.value))}
+                onBlur={() => {
+                  if (quantity % cols !== 0) {
+                    setQuantity(Math.ceil(quantity / cols) * cols);
+                  }
+                }}
                 className={inputClass}
               />
               {cols > 1 && (
-                <div className="mt-1.5 text-[9px] leading-snug">
-                  {isExactMultiple ? (
-                    <span className="text-emerald-500 font-medium">✅ Equivale exactamente a {calculatedRows} {calculatedRows === 1 ? 'fila completa' : 'filas completas'}.</span>
-                  ) : (
-                    <span className={theme === 'light' ? 'text-slate-500' : 'text-slate-400'}>
-                      💡 Se imprimirán {calculatedRows} filas (= {totalPhysicalLabels} etiquetas en total) para cubrir las {quantity} solicitadas. <strong className={theme === 'light' ? 'text-blue-600' : 'text-blue-400'}>Te sugerimos imprimir {totalPhysicalLabels} para no desperdiciar la fila completa.</strong>
-                    </span>
-                  )}
+                <div className="mt-1.5 text-[9px] leading-snug text-emerald-500 font-semibold">
+                  ✅ Impresión configurada en múltiplos de {cols} para este rollo. Se imprimirán {quantity} etiquetas ({calculatedRows} {calculatedRows === 1 ? 'fila completa' : 'filas completas'}), evitando dejar espacios vacíos en la bobina.
                 </div>
               )}
             </div>

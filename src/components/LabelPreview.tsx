@@ -21,36 +21,57 @@ export function LabelPreview({ format, onShowToast }: LabelPreviewProps) {
   const [bridgeUrl, setBridgeUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadPrinters() {
-      setLoadingPrinters(true);
+    let isMounted = true;
+    
+    async function loadPrinters(isBackground = false) {
+      if (!isBackground) setLoadingPrinters(true);
       try {
         const onCloud = isRunningOnCloud();
         let discoveredUrl: string | null = null;
         if (onCloud) {
           discoveredUrl = await discoverBridgeUrl();
+          if (!isMounted) return;
           setBridgeUrl(discoveredUrl);
           setLocalBridgeAvailable(!!discoveredUrl);
         }
 
         const data = await fetchPrinters(!!discoveredUrl, discoveredUrl);
+        if (!isMounted) return;
         setPrinters(data);
+        
         if (data.length > 0) {
           const savedPrinter = localStorage.getItem('zebra-default-printer');
-          if (savedPrinter && data.some(p => p.Name === savedPrinter)) {
-            setSelectedPrinter(savedPrinter);
-          } else {
+          setSelectedPrinter(current => {
+            // Keep current selection if it is still online
+            if (current && data.some(p => p.Name === current)) {
+              return current;
+            }
+            // Otherwise fallback to saved default
+            if (savedPrinter && data.some(p => p.Name === savedPrinter)) {
+              return savedPrinter;
+            }
+            // Or find any Zebra
             const zebra = data.find(p => p.DriverName?.toLowerCase().includes('zebra') || p.Name?.toLowerCase().includes('zebra'));
-            if (zebra) setSelectedPrinter(zebra.Name);
-            else setSelectedPrinter(data[0].Name);
-          }
+            return zebra ? zebra.Name : data[0].Name;
+          });
         }
       } catch (err) {
         console.error("Error loading printers", err);
       } finally {
-        setLoadingPrinters(false);
+        if (isMounted && !isBackground) setLoadingPrinters(false);
       }
     }
-    loadPrinters();
+    
+    loadPrinters(false);
+
+    const interval = setInterval(() => {
+      loadPrinters(true);
+    }, 10000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [format.id]);
 
   const handleCalibrationPrint = async () => {

@@ -419,7 +419,10 @@ export function TracePrintModal({
   const [dateFontMm, setDateFontMm] = useState(4);
   const [nameFontMm, setNameFontMm] = useState(3);
   const [traceFontMm, setTraceFontMm] = useState(3);
-  const [copies, setCopies] = useState(1);
+  const [copies, setCopies] = useState(() => {
+    const initialFormat = labelFormats.find((f) => f.id === initialFormatId) || labelFormats[0];
+    return initialFormat?.labelsPerRow || 1;
+  });
   const clampFont = (v: number) => Math.max(1.5, Math.min(8, Math.round(v * 2) / 2));
 
   // ── Operador state
@@ -492,6 +495,15 @@ export function TracePrintModal({
       setPositions(calcDefaults(currentFormat));
     }
     setLayoutSaved(false);
+
+    // Adjust copies to be a multiple of columns when format changes
+    const colsCount = currentFormat?.labelsPerRow || 1;
+    setCopies((prev) => {
+      if (prev % colsCount !== 0) {
+        return Math.ceil(prev / colsCount) * colsCount;
+      }
+      return prev;
+    });
   }, [activeFormatId, currentFormat, calcDefaults]);
 
   const handlePositionsChange = (p: TracePositions) => {
@@ -620,6 +632,9 @@ export function TracePrintModal({
     if (!selectedOperador) { onShowToast?.("Selecciona un operador", "error"); return; }
     if (!lineaProceso.trim()) { onShowToast?.("Ingresa la línea de proceso", "error"); return; }
 
+    const physical = Math.ceil(copies / cols) * cols;
+    const waste = Math.max(0, physical - copies);
+
     if (useWebUsb) {
       // WebUSB fallback
       if (!webUsbDevice) { onShowToast?.("Conecta una impresora USB primero", "error"); return; }
@@ -627,6 +642,22 @@ export function TracePrintModal({
       try {
         await sendZPLviaUSB(webUsbDevice, zplCode);
         onShowToast?.(`✅ ZPL enviado a ${webUsbDevice.productName || "impresora USB"} vía WebUSB`, "success");
+        recordPrint({
+          productName: product.item_name,
+          productSku: product.sku,
+          printerName: webUsbDevice.productName || "USB Printer",
+          mode: isRunningOnCloud() ? 'cloud' : 'local',
+          copies: copies,
+          status: 'success',
+          label_type: "trazabilidad",
+          format_id: activeFormatId,
+          labels_per_row: cols,
+          physical_labels: physical,
+          waste_labels: waste,
+          operator_code: selectedOperador?.codigo,
+          process_line: lineaProceso,
+          printed_barcodes: "LOTE",
+        });
       } catch (e: any) {
         onShowToast?.(e.message || "Error WebUSB", "error");
         setWebUsbDevice(null);
@@ -641,8 +672,16 @@ export function TracePrintModal({
         productSku: product.sku,
         printerName: selectedSystemPrinter,
         mode: isRunningOnCloud() ? 'cloud' : 'local',
-        copies: 1,
+        copies: copies,
         status: result.ok ? 'success' : 'error',
+        label_type: "trazabilidad",
+        format_id: activeFormatId,
+        labels_per_row: cols,
+        physical_labels: physical,
+        waste_labels: waste,
+        operator_code: selectedOperador?.codigo,
+        process_line: lineaProceso,
+        printed_barcodes: "LOTE",
         details: result.ok ? undefined : result.message,
       });
       if (result.ok) onShowToast?.(`✅ ${result.message}`, "success");
@@ -1003,19 +1042,18 @@ export function TracePrintModal({
 
             {/* Copies selector */}
             <div>
-              <label htmlFor="trace-copies" className={`block text-[9px] font-semibold uppercase tracking-wider mb-1 ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>¿Cuántas etiquetas desea imprimir?</label>
-              <input type="number" id="trace-copies" aria-label="Cantidad de copias" min={1} max={999} value={copies}
-                onChange={(e) => setCopies(Math.max(1, Number(e.target.value)))}
+              <label htmlFor="trace-copies" className={`block text-[9px] font-semibold uppercase tracking-wider mb-1 ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>¿Cuántas etiquetas desea imprimir? (Múltiplos de {cols})</label>
+              <input type="number" id="trace-copies" aria-label="Cantidad de copias" min={cols} max={999} step={cols} value={copies}
+                onChange={(e) => setCopies(Number(e.target.value))}
+                onBlur={() => {
+                  if (copies % cols !== 0) {
+                    setCopies(Math.ceil(copies / cols) * cols);
+                  }
+                }}
                 className={inputClass} />
               {cols > 1 && (
-                <div className="mt-1.5 text-[9px] leading-snug">
-                  {isExactMultiple ? (
-                    <span className="text-emerald-500 font-medium">✅ Equivale exactamente a {calculatedRows} {calculatedRows === 1 ? 'fila completa' : 'filas completas'}.</span>
-                  ) : (
-                    <span className={theme === 'light' ? 'text-slate-500' : 'text-slate-400'}>
-                      💡 Se imprimirán {calculatedRows} filas (= {totalPhysicalLabels} etiquetas en total) para cubrir las {copies} solicitadas. <strong className={theme === 'light' ? 'text-blue-600' : 'text-blue-400'}>Te sugerimos imprimir {totalPhysicalLabels} para no desperdiciar la fila completa.</strong>
-                    </span>
-                  )}
+                <div className="mt-1.5 text-[9px] leading-snug text-emerald-500 font-semibold">
+                  ✅ Impresión configurada en múltiplos de {cols} para este rollo. Se imprimirán {copies} etiquetas ({calculatedRows} {calculatedRows === 1 ? 'fila completa' : 'filas completas'}), evitando dejar espacios vacíos en la bobina.
                 </div>
               )}
             </div>

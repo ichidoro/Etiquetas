@@ -88,6 +88,7 @@ function findBridgeForPrinter(printerName: string): string | null {
 }
 
 /** Fetch system printers — auto-discovers bridge or gets from cloud registry */
+/** Fetch system printers — auto-discovers bridge or gets from cloud registry */
 export async function fetchPrinters(
   useLocalBridge?: boolean,
   bridgeUrl?: string | null
@@ -107,15 +108,14 @@ export async function fetchPrinters(
         console.log(`[PrintBridge] Bridge "${bridge.hostname}" → ${bridge.printers.length} impresoras`);
         
         for (const p of bridge.printers) {
-          // Key = name+bridge to allow same printer on different PCs
-          const key = `${p.Name}__${bridge.id}`;
-          printerToBridge.set(p.Name, bridge.id);
+          const uniqueName = `${p.Name} [via ${bridge.hostname}]`;
+          printerToBridge.set(uniqueName, bridge.id);
           
-          if (!seen.has(key)) {
-            seen.add(key);
+          if (!seen.has(uniqueName)) {
+            seen.add(uniqueName);
             allPrinters.push({
-              Name: p.Name,
-              PortName: `via ${bridge.hostname}`,
+              Name: uniqueName,
+              PortName: `IP: ${bridge.localIp}`,
               DriverName: p.DriverName || "",
               _bridgeId: bridge.id,
               _bridgeHost: bridge.hostname,
@@ -157,15 +157,14 @@ export async function fetchPrinters(
       console.log(`[PrintBridge] Bridge "${bridge.hostname}" (${bridge.localIp}) → ${bridge.printers.length} impresoras`);
       
       for (const p of bridge.printers) {
-        // Register which bridge has this printer
-        printerToBridge.set(p.Name, bridge.id);
+        const uniqueName = `${p.Name} [via ${bridge.hostname}]`;
+        printerToBridge.set(uniqueName, bridge.id);
         
-        // Avoid duplicates (same printer name on multiple bridges)
-        if (!seen.has(p.Name)) {
-          seen.add(p.Name);
+        if (!seen.has(uniqueName)) {
+          seen.add(uniqueName);
           allPrinters.push({
-            Name: p.Name,
-            PortName: `via ${bridge.hostname}`,
+            Name: uniqueName,
+            PortName: `IP: ${bridge.localIp}`,
             DriverName: p.DriverName || "",
             _bridgeId: bridge.id,
             _bridgeHost: bridge.hostname,
@@ -203,6 +202,14 @@ export function recordPrint(opts: {
   status: 'success' | 'error';
   bridgeId?: string;
   details?: string;
+  label_type?: string;
+  format_id?: string;
+  labels_per_row?: number;
+  physical_labels?: number;
+  waste_labels?: number;
+  operator_code?: string;
+  process_line?: string;
+  printed_barcodes?: string;
 }) {
   fetch("/api/print-history", {
     method: 'POST',
@@ -219,14 +226,24 @@ export async function sendPrintJob(
   bridgeUrl?: string | null
 ): Promise<{ ok: boolean; message: string }> {
   
+  // Find which bridge has this printer (using the decorated uniqueName)
+  let targetBridgeId = findBridgeForPrinter(printerName);
+
+  // Clean the printer name (remove the " [via Hostname]" suffix) for actual Windows printing
+  let cleanPrinterName = printerName;
+  const viaIndex = printerName.indexOf(" [via ");
+  if (viaIndex !== -1) {
+    cleanPrinterName = printerName.substring(0, viaIndex);
+  }
+  
   // Local mode — always print directly via same-origin endpoint
   if (!isRunningOnCloud()) {
     try {
-      console.log(`[PrintBridge] Local mode → direct print to /api/print/usb → ${printerName}`);
+      console.log(`[PrintBridge] Local mode → direct print to /api/print/usb → ${cleanPrinterName}`);
       const res = await fetch("/api/print/usb", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ zpl, printerName }),
+        body: JSON.stringify({ zpl, printerName: cleanPrinterName }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -240,14 +257,11 @@ export async function sendPrintJob(
 
   // Cloud queue mode — find the RIGHT bridge for this printer
   if (bridgeUrl === "CLOUD_QUEUE") {
-    // Find which bridge has this printer
-    let targetBridgeId = findBridgeForPrinter(printerName);
-    
-    // If not in cache, refresh bridges and try again
+    // If not in cache, refresh bridges and try again using clean name
     if (!targetBridgeId) {
       const bridges = await getAllBridges();
       for (const bridge of bridges) {
-        if (bridge.printers?.some((p: any) => p.Name === printerName)) {
+        if (bridge.printers?.some((p: any) => p.Name === cleanPrinterName)) {
           targetBridgeId = bridge.id;
           break;
         }
@@ -260,7 +274,7 @@ export async function sendPrintJob(
       const withPrinters = bridges.find((b: any) => b.printers?.length > 0);
       if (withPrinters) {
         targetBridgeId = withPrinters.id;
-        console.log(`[PrintBridge] Printer "${printerName}" not found on any bridge. Using "${withPrinters.hostname}" as fallback.`);
+        console.log(`[PrintBridge] Printer "${cleanPrinterName}" not found on any bridge. Using "${withPrinters.hostname}" as fallback.`);
       }
     }
 
@@ -268,7 +282,7 @@ export async function sendPrintJob(
       return { ok: false, message: "No hay ningún bridge con impresoras activas. Ejecuta el instalador en el PC con impresoras." };
     }
 
-    console.log(`[PrintBridge] CLOUD QUEUE → bridge "${targetBridgeId}" → "${printerName}"`);
+    console.log(`[PrintBridge] CLOUD QUEUE → bridge "${targetBridgeId}" → "${cleanPrinterName}"`);
 
     try {
       const res = await fetch("/api/print-queue", {
@@ -277,7 +291,7 @@ export async function sendPrintJob(
         body: JSON.stringify({
           bridgeId: targetBridgeId,
           zpl,
-          printerName,
+          printerName: cleanPrinterName,
         }),
       });
       const data = await res.json();
@@ -294,12 +308,12 @@ export async function sendPrintJob(
   const baseUrl = bridgeUrl || (useLocalBridge ? LOCAL_SERVER_URL : "");
 
   try {
-    console.log(`[PrintBridge] Sending print job to: ${baseUrl || "(same origin)"} → ${printerName}`);
+    console.log(`[PrintBridge] Sending print job to: ${baseUrl || "(same origin)"} → ${cleanPrinterName}`);
     const fetchFn = baseUrl ? localFetch : fetch;
     const res = await fetchFn(`${baseUrl}/api/print/usb`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ zpl, printerName }),
+      body: JSON.stringify({ zpl, printerName: cleanPrinterName }),
     });
     const data = await res.json();
     if (res.ok) {

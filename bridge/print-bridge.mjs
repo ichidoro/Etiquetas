@@ -49,7 +49,7 @@ function setCors(res, req) {
 // ── Get Windows printers via PowerShell ──────────────────────────────────────
 function getSystemPrinters() {
   try {
-    const ps = `Get-Printer | Where-Object { $_.DriverName -like '*ZDesigner*' -or $_.DriverName -like '*Generic*' -or $_.DriverName -like '*Text Only*' -or $_.DriverName -like '*Solo Texto*' } | Select-Object Name, PortName, DriverName | ConvertTo-Json -Compress`;
+    const ps = `Get-CimInstance Win32_Printer | Where-Object { ($_.DriverName -like '*ZDesigner*' -or $_.DriverName -like '*Generic*' -or $_.DriverName -like '*Text Only*' -or $_.DriverName -like '*Solo Texto*' -or $_.DriverName -like '*Zebra*' -or $_.Name -like '*Zebra*') } | Select-Object Name, PortName, DriverName | ConvertTo-Json -Compress`;
     const raw = execSync(`powershell -NoProfile -Command "${ps}"`, {
       encoding: "utf-8",
       timeout: 10000,

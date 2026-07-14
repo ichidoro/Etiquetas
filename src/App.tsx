@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import {
@@ -21,8 +21,15 @@ import {
   Globe,
   Copy,
   Terminal,
+  Calendar,
+  Cpu,
+  Send,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  X,
 } from "lucide-react";
-import { Product, LabelFormat } from "./types";
+import { Product, LabelFormat, TipoEmpaqueSecundario, TipoEnvasePrimario } from "./types";
 import { ProductForm } from "./components/ProductForm";
 import { PrintModal } from "./components/PrintModal";
 import { TracePrintModal } from "./components/TracePrintModal";
@@ -32,6 +39,9 @@ import { SystemConsole } from "./components/SystemConsole";
 import { PrintHistory } from "./components/PrintHistory";
 import { PrinterManager } from "./components/PrinterManager";
 import { FreeLabelCreator } from "./components/FreeLabelCreator";
+import { LineasProcesoManager } from "./components/LineasProcesoManager";
+import { PlanificacionManager } from "./components/PlanificacionManager";
+import { WhatsAppConfigTab } from "./components/WhatsAppConfigTab";
 
 export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light' | 'glass'>(() => (localStorage.getItem('tracelabel-theme') as any) || 'dark');
@@ -40,6 +50,7 @@ export default function App() {
   const [filterBusinessLine, setFilterBusinessLine] = useState("");
   const [filterFamily, setFilterFamily] = useState("");
   const [filterMarca, setFilterMarca] = useState("");
+  const [filterFormato, setFilterFormato] = useState("");
   const [filterStatus, setFilterStatus] = useState("activo"); // 'todos', 'activo', 'inactivo'
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
@@ -48,11 +59,219 @@ export default function App() {
     type: "success" | "error";
   } | null>(null);
 
-  // Views and DB status
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
+
+  const [sortColumn, setSortColumn] = useState<string>("sku");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  const defaultColumnOrder = [
+    "sku", "item_name", "ean13", "dun14", "isp", "marca", "caducidad", 
+    "envase_primario_tipo", "envase_secundario_tipo", "tapa_tipo", "cant_grupal", "cant_individual", "formato", 
+    "barras", "trazab", "editar", "eliminar"
+  ];
+
+  const [columnOrder, setColumnOrder] = useState<string[]>(() => {
+    const saved = localStorage.getItem("tracelabel-column-order");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const existing = parsed.filter(id => defaultColumnOrder.includes(id));
+          const missing = defaultColumnOrder.filter(id => !existing.includes(id));
+          if (existing.length > 0) {
+            return [...existing, ...missing];
+          }
+        }
+      } catch (e) {}
+    }
+    return defaultColumnOrder;
+  });
+
+  // Save column order to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem("tracelabel-column-order", JSON.stringify(columnOrder));
+  }, [columnOrder]);
+
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>(() => {
+    const saved = localStorage.getItem("tracelabel-hidden-columns");
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [isColumnDropdownOpen, setIsColumnDropdownOpen] = useState(false);
+  const columnDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    localStorage.setItem("tracelabel-hidden-columns", JSON.stringify(hiddenColumns));
+  }, [hiddenColumns]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (columnDropdownRef.current && !columnDropdownRef.current.contains(event.target as Node)) {
+        setIsColumnDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const defaultWidths: Record<string, number> = {
+    sku: 95,
+    item_name: 270,
+    ean13: 130,
+    dun14: 140,
+    isp: 90,
+    marca: 110,
+    caducidad: 80,
+    envase_primario_tipo: 90,
+    envase_secundario_tipo: 90,
+    tapa_tipo: 90,
+    cant_grupal: 100,
+    cant_individual: 100,
+    formato: 100,
+    barras: 70,
+    trazab: 75,
+    editar: 70,
+    eliminar: 75
+  };
+
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
+    const saved = localStorage.getItem("tracelabel-column-widths");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === "object") {
+          return { ...defaultWidths, ...parsed };
+        }
+      } catch (e) {}
+    }
+    return defaultWidths;
+  });
+
+  // Save widths to localStorage
+  useEffect(() => {
+    localStorage.setItem("tracelabel-column-widths", JSON.stringify(columnWidths));
+  }, [columnWidths]);
+
+  const [hoveredResizeCol, setHoveredResizeCol] = useState<string | null>(null);
+
+  const handleResizeStart = (e: React.MouseEvent, colId: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    const startX = e.clientX;
+    const startWidth = columnWidths[colId] || defaultWidths[colId] || 100;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const newWidth = Math.max(50, startWidth + deltaX); // Limit min width to 50px
+      setColumnWidths((prev) => ({
+        ...prev,
+        [colId]: newWidth
+      }));
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
+
+  const draggedColIdRef = useRef<string | null>(null);
+  const isDragActiveRef = useRef<boolean>(false);
+  const [dragOverColId, setDragOverColId] = useState<string | null>(null);
+  const [dragDirection, setDragDirection] = useState<"left" | "right" | null>(null);
+
+  const handleDragStart = (e: React.DragEvent<HTMLTableHeaderCellElement>, id: string) => {
+    draggedColIdRef.current = id;
+    isDragActiveRef.current = true;
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLTableHeaderCellElement>, targetId: string) => {
+    e.preventDefault();
+    if (draggedColIdRef.current === targetId) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const isLeft = mouseX < rect.width / 2;
+
+    setDragOverColId(targetId);
+    setDragDirection(isLeft ? "left" : "right");
+  };
+
+  const handleDragEnd = () => {
+    draggedColIdRef.current = null;
+    setDragOverColId(null);
+    setDragDirection(null);
+    setTimeout(() => {
+      isDragActiveRef.current = false;
+    }, 100);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLTableHeaderCellElement>, targetId: string) => {
+    e.preventDefault();
+    const draggedId = draggedColIdRef.current;
+    if (!draggedId || draggedId === targetId) return;
+
+    setColumnOrder((prevOrder) => {
+      const filtered = prevOrder.filter((id) => id !== draggedId);
+      const targetIdx = filtered.indexOf(targetId);
+      
+      let nextOrder = [...filtered];
+      if (dragDirection === "left") {
+        nextOrder.splice(targetIdx, 0, draggedId);
+      } else {
+        nextOrder.splice(targetIdx + 1, 0, draggedId);
+      }
+      return nextOrder;
+    });
+
+    setDragOverColId(null);
+    setDragDirection(null);
+  };
+
+  const handleSort = (columnId: string) => {
+    if (isDragActiveRef.current) return;
+    
+    const col = columnsConfig[columnId];
+    if (!col || !col.sortable) return;
+
+    if (sortColumn === columnId) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(columnId);
+      setSortDirection("asc");
+    }
+  };
+
+  // Reset pagination when filters, search, or sorting change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filterBusinessLine, filterFamily, filterMarca, filterFormato, filterStatus, sortColumn, sortDirection]);
+
   const [currentView, setCurrentView] = useState<
-    "maestro" | "formatos" | "historial" | "configuracion" | "disenador"
-  >("maestro");
-  const [configTab, setConfigTab] = useState<"basedatos" | "operadores" | "impresoras" | "instalacion" | "consola">("operadores");
+    "maestro" | "formatos" | "historial" | "configuracion" | "disenador" | "planificacion"
+  >(() => {
+    return (localStorage.getItem("tracelabel-current-view") as any) || "maestro";
+  });
+  const [configTab, setConfigTab] = useState<"basedatos" | "operadores" | "lineas" | "whatsapp" | "impresoras" | "instalacion" | "consola" | "empaques">(() => {
+    return (localStorage.getItem("tracelabel-config-tab") as any) || "operadores";
+  });
+  const [envaseSubTab, setEnvaseSubTab] = useState<"primarios" | "secundarios" | "tapas">("primarios");
+
+  useEffect(() => {
+    localStorage.setItem("tracelabel-current-view", currentView);
+  }, [currentView]);
+
+  useEffect(() => {
+    localStorage.setItem("tracelabel-config-tab", configTab);
+  }, [configTab]);
   const [dbStatus, setDbStatus] = useState<{ dbType: string; dbUrl: string }>({
     dbType: "local-sqlite",
     dbUrl: "file:local.db",
@@ -192,10 +411,71 @@ export default function App() {
   const [tracePrintingProduct, setTracePrintingProduct] = useState<Product | undefined>();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [tiposEmpaque, setTiposEmpaque] = useState<TipoEmpaqueSecundario[]>([]);
+  const [tiposEnvasePrimario, setTiposEnvasePrimario] = useState<TipoEnvasePrimario[]>([]);
+  const [tiposTapa, setTiposTapa] = useState<TipoTapa[]>([]);
+
+  // Inline editing states for packaging types
+  const [editingEnvasePrimarioId, setEditingEnvasePrimarioId] = useState<number | null>(null);
+  const [editingEnvasePrimarioCode, setEditingEnvasePrimarioCode] = useState<string>("");
+  const [editingEnvasePrimarioName, setEditingEnvasePrimarioName] = useState<string>("");
+  const [editingEnvaseSecundarioId, setEditingEnvaseSecundarioId] = useState<number | null>(null);
+  const [editingEnvaseSecundarioName, setEditingEnvaseSecundarioName] = useState<string>("");
+  const [editingEnvaseSecundarioGrupal, setEditingEnvaseSecundarioGrupal] = useState<boolean>(false);
+
+  // Tapas states
+  const [editingTapaId, setEditingTapaId] = useState<number | null>(null);
+  const [editingTapaCode, setEditingTapaCode] = useState<string>("");
+  const [editingTapaName, setEditingTapaName] = useState<string>("");
+  const [tapaSearch, setTapaSearch] = useState<string>("");
+  const [tapaSort, setTapaSort] = useState<{ column: 'codigo' | 'nombre'; direction: 'asc' | 'desc' }>({ column: 'nombre', direction: 'asc' });
+
+  const [envasePrimarioSearch, setEnvasePrimarioSearch] = useState<string>("");
+  const [envasePrimarioSort, setEnvasePrimarioSort] = useState<{ column: 'codigo' | 'nombre'; direction: 'asc' | 'desc' }>({ column: 'nombre', direction: 'asc' });
+
+  const fetchTiposEmpaque = async () => {
+    try {
+      const res = await fetch("/api/tipos-empaque-secundario");
+      if (res.ok) {
+        const data = await res.json();
+        setTiposEmpaque(data);
+      }
+    } catch (err) {
+      console.error("Error fetching tipos empaque:", err);
+    }
+  };
+
+  const fetchTiposEnvasePrimario = async () => {
+    try {
+      const res = await fetch("/api/tipos-envase-primario");
+      if (res.ok) {
+        const data = await res.json();
+        setTiposEnvasePrimario(data);
+      }
+    } catch (err) {
+      console.error("Error fetching tipos envase primario:", err);
+    }
+  };
+
+  const fetchTiposTapa = async () => {
+    try {
+      const res = await fetch("/api/tipos-tapa");
+      if (res.ok) {
+        const data = await res.json();
+        setTiposTapa(data);
+      }
+    } catch (err) {
+      console.error("Error fetching tipos tapa:", err);
+    }
+  };
+
   useEffect(() => {
     fetchProducts();
     fetchConfig();
     fetchLabelFormats();
+    fetchTiposEmpaque();
+    fetchTiposEnvasePrimario();
+    fetchTiposTapa();
   }, []);
 
   // Auto-refresh every 30s for real-time sync between PCs
@@ -204,6 +484,8 @@ export default function App() {
       fetchProducts();
       fetchLabelFormats();
       fetchConfig();
+      fetchTiposEmpaque();
+      fetchTiposEnvasePrimario();
     }, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -446,11 +728,21 @@ export default function App() {
       .filter(Boolean)
   )).sort((a: any, b: any) => a.localeCompare(b)) as string[];
 
+  const formatos = Array.from(new Set(
+    products
+      .filter(p => filterBusinessLine === "" || p.business_line === filterBusinessLine)
+      .filter(p => filterFamily === "" || p.family === filterFamily)
+      .filter(p => filterMarca === "" || p.marca === filterMarca)
+      .map(p => p.formato)
+      .filter(Boolean)
+  )).sort((a: any, b: any) => a.localeCompare(b)) as string[];
+
   const filteredProducts = products.filter(
     (p) => {
       const matchBusinessLine = filterBusinessLine === "" || p.business_line === filterBusinessLine;
       const matchFamily = filterFamily === "" || p.family === filterFamily;
       const matchMarca = filterMarca === "" || p.marca === filterMarca;
+      const matchFormato = filterFormato === "" || p.formato === filterFormato;
       
       let matchStatus = true;
       if (filterStatus === "activo") matchStatus = p.activo !== false; // handle true or undefined
@@ -460,19 +752,299 @@ export default function App() {
         p.item_name.toLowerCase().includes(search.toLowerCase()) ||
         (p.business_line && p.business_line.toLowerCase().includes(search.toLowerCase())) ||
         (p.family && p.family.toLowerCase().includes(search.toLowerCase())) ||
-        (p.marca && p.marca.toLowerCase().includes(search.toLowerCase()));
+        (p.marca && p.marca.toLowerCase().includes(search.toLowerCase())) ||
+        (p.formato && p.formato.toLowerCase().includes(search.toLowerCase()));
 
-      return matchBusinessLine && matchFamily && matchMarca && matchStatus && matchSearch;
+      return matchBusinessLine && matchFamily && matchMarca && matchFormato && matchStatus && matchSearch;
     }
   );
+
+  const columnsConfig: Record<string, {
+    label: string;
+    minWidth?: string;
+    className?: string;
+    sortable: boolean;
+    getValue: (p: Product) => any;
+    render: (p: Product) => React.ReactNode;
+  }> = {
+    sku: {
+      label: 'SKU',
+      minWidth: '90px',
+      sortable: true,
+      getValue: (p) => p.sku,
+      render: (p) => <td className="px-3 py-3.5 whitespace-nowrap text-sm font-bold text-slate-900">{p.sku}</td>
+    },
+    item_name: {
+      label: 'Nombre',
+      minWidth: '250px',
+      sortable: true,
+      getValue: (p) => p.item_name,
+      render: (p) => (
+        <td className="px-3 py-3.5 text-sm font-medium text-slate-800 min-w-[250px]" title={p.item_name}>
+          <div className="line-clamp-2 break-words leading-relaxed">{p.item_name}</div>
+        </td>
+      )
+    },
+    ean13: {
+      label: 'EAN-13',
+      minWidth: '130px',
+      sortable: true,
+      getValue: (p) => p.ean13,
+      render: (p) => (
+        <td className="px-3 py-3.5 whitespace-nowrap">
+          {p.ean13 ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">{p.ean13}</span>
+          ) : (
+            <span className="text-xs text-slate-400 font-mono">-</span>
+          )}
+        </td>
+      )
+    },
+    dun14: {
+      label: 'DUN-14',
+      minWidth: '140px',
+      sortable: true,
+      getValue: (p) => p.dun14,
+      render: (p) => (
+        <td className="px-3 py-3.5 whitespace-nowrap">
+          {p.dun14 ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">{p.dun14}</span>
+          ) : (
+            <span className="text-xs text-slate-400 font-mono">-</span>
+          )}
+        </td>
+      )
+    },
+    isp: {
+      label: 'ISP',
+      minWidth: '90px',
+      sortable: true,
+      getValue: (p) => p.isp,
+      render: (p) => <td className="px-3 py-3.5 whitespace-nowrap text-xs text-slate-600 font-mono" translate="no">{p.isp || "-"}</td>
+    },
+    marca: {
+      label: 'Marca',
+      minWidth: '110px',
+      sortable: true,
+      getValue: (p) => p.marca,
+      render: (p) => <td className="px-3 py-3.5 text-xs text-slate-600 font-medium">{p.marca || "-"}</td>
+    },
+    caducidad: {
+      label: 'Cad.',
+      minWidth: '80px',
+      sortable: true,
+      getValue: (p) => p.caducidad,
+      render: (p) => <td className="px-3 py-3.5 whitespace-nowrap text-xs text-slate-600 font-mono font-medium">{p.caducidad !== undefined && p.caducidad !== null ? `${p.caducidad}d` : "-"}</td>
+    },
+    envase_primario_tipo: {
+      label: 'Env. Pri.',
+      minWidth: '90px',
+      sortable: true,
+      getValue: (p) => {
+        const val = p.envase_primario_tipo || 'BOTELLA';
+        const found = tiposEnvasePrimario.find(t => t.nombre === val);
+        return found && found.codigo ? `${found.codigo} ${found.nombre}` : val;
+      },
+      render: (p) => {
+        const val = p.envase_primario_tipo || 'BOTELLA';
+        const found = tiposEnvasePrimario.find(t => t.nombre === val);
+        const displayVal = found && found.codigo ? `${found.codigo} ${found.nombre}` : val;
+        return (
+          <td className="px-3 py-3.5 whitespace-nowrap">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200">
+              {displayVal}
+            </span>
+          </td>
+        );
+      }
+    },
+    envase_secundario_tipo: {
+      label: 'Env. Sec.',
+      minWidth: '90px',
+      sortable: true,
+      getValue: (p) => p.envase_secundario_tipo || (p.envase_secundario_default || p.termocontraible_default ? 'TERMOCONTRAIBLE' : 'NO APLICA'),
+      render: (p) => (
+        <td className="px-3 py-3.5 whitespace-nowrap">
+          {p.envase_secundario_tipo && p.envase_secundario_tipo !== 'NO APLICA' ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-800 border border-purple-200">
+              {p.envase_secundario_tipo}
+            </span>
+          ) : (p.envase_secundario_default || p.termocontraible_default) ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-800 border border-purple-200">
+              TERMOCONTRAIBLE
+            </span>
+          ) : (
+            <span className="text-xs text-slate-400 font-mono">-</span>
+          )}
+        </td>
+      )
+    },
+    tapa_tipo: {
+      label: 'Tapa',
+      minWidth: '90px',
+      sortable: true,
+      getValue: (p) => {
+        const val = p.tapa_tipo;
+        if (!val || val === 'NO APLICA' || val === '-') return '';
+        const found = tiposTapa.find(t => t.nombre === val);
+        return found && found.codigo ? `${found.codigo} ${found.nombre}` : val;
+      },
+      render: (p) => {
+        const val = p.tapa_tipo;
+        if (!val || val === 'NO APLICA' || val === '-') {
+          return (
+            <td className="px-3 py-3.5 whitespace-nowrap">
+              <span className="text-xs text-slate-400 font-mono">-</span>
+            </td>
+          );
+        }
+        const found = tiposTapa.find(t => t.nombre === val);
+        const displayVal = found && found.codigo ? `${found.codigo} ${found.nombre}` : val;
+        return (
+          <td className="px-3 py-3.5 whitespace-nowrap">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-violet-50 text-violet-800 border border-violet-200">
+              {displayVal}
+            </span>
+          </td>
+        );
+      }
+    },
+    cant_grupal: {
+      label: 'Cant. Grup.',
+      minWidth: '100px',
+      sortable: true,
+      getValue: (p) => p.cant_grupal,
+      render: (p) => <td className="px-3 py-3.5 whitespace-nowrap text-xs text-slate-600 font-mono font-semibold">{p.cant_grupal || 0}</td>
+    },
+    cant_individual: {
+      label: 'Cant. Ind.',
+      minWidth: '100px',
+      sortable: true,
+      getValue: (p) => p.cant_individual,
+      render: (p) => <td className="px-3 py-3.5 whitespace-nowrap text-xs text-slate-600 font-mono font-semibold">{p.cant_individual || 0}</td>
+    },
+    formato: {
+      label: 'Formato',
+      minWidth: '100px',
+      sortable: true,
+      getValue: (p) => p.formato,
+      render: (p) => <td className="px-3 py-3.5 whitespace-nowrap text-xs text-slate-600 font-medium">{p.formato || "-"}</td>
+    },
+    barras: {
+      label: 'Barras',
+      minWidth: '70px',
+      sortable: false,
+      getValue: () => '',
+      render: (p) => (
+        <td className="px-2 py-3.5 whitespace-nowrap text-center">
+          <button onClick={() => setPrintingProduct(p)} title="Imprimir Código de Barras" className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer">
+            <Printer className="w-4 h-4" />
+          </button>
+        </td>
+      )
+    },
+    trazab: {
+      label: 'Trazab.',
+      minWidth: '75px',
+      sortable: false,
+      getValue: () => '',
+      render: (p) => (
+        <td className="px-2 py-3.5 whitespace-nowrap text-center">
+          <button onClick={() => setTracePrintingProduct(p)} title="Imprimir Trazabilidad" className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors cursor-pointer">
+            <ClipboardList className="w-4 h-4" />
+          </button>
+        </td>
+      )
+    },
+    editar: {
+      label: 'Editar',
+      minWidth: '70px',
+      sortable: false,
+      getValue: () => '',
+      render: (p) => (
+        <td className="px-2 py-3.5 whitespace-nowrap text-center">
+          <button onClick={() => { setEditingProduct(p); setIsFormOpen(true); }} title="Editar" className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer">
+            <Edit className="w-4 h-4" />
+          </button>
+        </td>
+      )
+    },
+    eliminar: {
+      label: 'Eliminar',
+      minWidth: '75px',
+      sortable: false,
+      getValue: () => '',
+      render: (p) => (
+        <td className="px-2 py-3.5 whitespace-nowrap text-center">
+          <button onClick={() => handleDelete(p.id!)} title="Eliminar" className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors cursor-pointer">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </td>
+      )
+    }
+  };
+
+  const visibleColumns = useMemo(() => {
+    return columnOrder.filter((colId) => !hiddenColumns.includes(colId));
+  }, [columnOrder, hiddenColumns]);
+
+  const sortedProducts = useMemo(() => {
+    if (!sortColumn) return filteredProducts;
+    const col = columnsConfig[sortColumn];
+    if (!col || !col.sortable) return filteredProducts;
+
+    const sorted = [...filteredProducts];
+    sorted.sort((a, b) => {
+      const valA = col.getValue(a);
+      const valB = col.getValue(b);
+
+      const isEmptyA = valA === undefined || valA === null || valA === "";
+      const isEmptyB = valB === undefined || valB === null || valB === "";
+
+      if (isEmptyA && isEmptyB) return 0;
+      if (isEmptyA) return 1; // Always send empty values to the bottom
+      if (isEmptyB) return -1;
+
+      // Numeric comparison
+      if (typeof valA === "number" && typeof valB === "number") {
+        return sortDirection === "asc" ? valA - valB : valB - valA;
+      }
+
+      // Default string comparison
+      const strA = String(valA).toLowerCase();
+      const strB = String(valB).toLowerCase();
+      return sortDirection === "asc"
+        ? strA.localeCompare(strB)
+        : strB.localeCompare(strA);
+    });
+
+    return sorted;
+  }, [filteredProducts, sortColumn, sortDirection]);
+
+  const totalPages = Math.ceil(sortedProducts.length / ITEMS_PER_PAGE) || 1;
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedProducts = useMemo(() => {
+    return sortedProducts.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [sortedProducts, currentPage, startIndex]);
 
   return (
     <div className={`flex h-screen bg-slate-100 text-slate-700 font-sans overflow-hidden app-theme-${theme}`}>
       {/* Sidebar */}
       <aside className="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0">
-        <div className="p-6 text-xl font-bold border-b border-slate-800 flex items-center gap-3">
-          <img src="/tracelabel-logo.png" alt="TraceLabel" className="w-8 h-8 rounded" />
-          TraceLabel
+        <div className="p-5 border-b border-slate-800 flex flex-col items-center gap-2 bg-slate-950/40">
+          <img 
+            src="/aquaops-logo.png" 
+            alt="AquaOps Logo" 
+            className="w-16 h-16 object-contain" 
+          />
+          <div className="text-center">
+            <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent font-extrabold tracking-widest text-lg block">
+              AquaOps
+            </span>
+            <span className="text-[9px] text-slate-500 tracking-wider uppercase font-medium block -mt-0.5">
+              Production Operations
+            </span>
+          </div>
         </div>
         <nav className="flex-1 mt-4 space-y-1">
           <div
@@ -504,6 +1076,13 @@ export default function App() {
             Historial de Impresión
           </div>
           <div
+            onClick={() => setCurrentView("planificacion")}
+            className={`px-6 py-3 flex items-center gap-3 cursor-pointer text-sm font-medium transition-colors ${currentView === "planificacion" ? "bg-blue-600 text-white" : "hover:bg-slate-800 text-slate-300"}`}
+          >
+            <Calendar className="w-4 h-4" />
+            Planificación
+          </div>
+          <div
             onClick={() => setCurrentView("configuracion")}
             className={`px-6 py-3 flex items-center gap-3 cursor-pointer text-sm font-medium transition-colors ${currentView === "configuracion" ? "bg-blue-600 text-white" : "hover:bg-slate-800 text-slate-300"}`}
           >
@@ -530,6 +1109,7 @@ export default function App() {
                 : currentView === "formatos" ? "Formatos de Etiqueta"
                 : currentView === "disenador" ? "Diseñador de Etiquetas"
                 : currentView === "historial" ? "Historial de Impresión"
+                : currentView === "planificacion" ? "Planificación de Producción"
                 : "Configuración"}
             </h1>
             <p className="text-xs text-slate-500">
@@ -537,6 +1117,7 @@ export default function App() {
                 : currentView === "formatos" ? "Configuración de etiquetas ZPL"
                 : currentView === "disenador" ? "Crea etiquetas personalizadas con texto libre"
                 : currentView === "historial" ? "Registro de impresiones enviadas"
+                : currentView === "planificacion" ? "Asigna productos y programa la producción diaria"
                 : "Configuración del sistema"}
             </p>
           </div>
@@ -659,7 +1240,7 @@ export default function App() {
 
                 {/* Search and Filters */}
                 <div className="flex flex-col md:flex-row gap-4">
-                  <div className="relative flex-1">
+                  <div className="relative flex-1 md:max-w-[280px]">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <Search className="h-5 w-5 text-slate-400" />
                     </div>
@@ -687,6 +1268,7 @@ export default function App() {
                           setFilterBusinessLine(e.target.value);
                           setFilterFamily("");
                           setFilterMarca("");
+                          setFilterFormato("");
                         }}
                         className="block w-full py-3 px-3 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white text-slate-800"
                       >
@@ -711,6 +1293,7 @@ export default function App() {
                         onChange={(e) => {
                           setFilterFamily(e.target.value);
                           setFilterMarca("");
+                          setFilterFormato("");
                         }}
                         className="block w-full py-3 px-3 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white text-slate-800"
                       >
@@ -732,13 +1315,37 @@ export default function App() {
                         id="filter-marca"
                         aria-label="Filtrar por marca"
                         value={filterMarca}
-                        onChange={(e) => setFilterMarca(e.target.value)}
+                        onChange={(e) => {
+                          setFilterMarca(e.target.value);
+                          setFilterFormato("");
+                        }}
                         className="block w-full py-3 px-3 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white text-slate-800"
                       >
                         <option value="">Marca (Todas)</option>
                         {marcas.map((m) => (
                           <option key={m} value={m}>
                             {m}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Filter: Formato */}
+                  {formatos.length > 0 && (
+                    <div className="md:w-48">
+                      <label htmlFor="filter-formato" className="sr-only">Formato</label>
+                      <select
+                        id="filter-formato"
+                        aria-label="Filtrar por formato"
+                        value={filterFormato}
+                        onChange={(e) => setFilterFormato(e.target.value)}
+                        className="block w-full py-3 px-3 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white text-slate-800"
+                      >
+                        <option value="">Formato (Todos)</option>
+                        {formatos.map((form) => (
+                          <option key={form} value={form}>
+                            {form}
                           </option>
                         ))}
                       </select>
@@ -760,35 +1367,122 @@ export default function App() {
                       <option value="inactivo">Inactivos</option>
                     </select>
                   </div>
+
+                  {/* Column Visibility Selector */}
+                  <div className="relative" ref={columnDropdownRef}>
+                    <button
+                      onClick={() => setIsColumnDropdownOpen(!isColumnDropdownOpen)}
+                      className="flex items-center justify-center gap-2 py-3 px-4 border border-slate-300 rounded-lg shadow-sm bg-white text-slate-700 hover:bg-slate-50 transition-colors sm:text-sm font-semibold cursor-pointer h-full"
+                      title="Configurar Columnas Visibles"
+                    >
+                      <Settings className="w-4 h-4 text-slate-500" />
+                      <span>Columnas</span>
+                    </button>
+                    {isColumnDropdownOpen && (
+                      <div className="absolute right-0 mt-2 w-56 rounded-lg shadow-lg bg-white border border-slate-200 z-50 py-2 max-h-80 overflow-y-auto">
+                        <div className="px-3 py-1 text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-2 mb-1">
+                          Mostrar/Ocultar Columnas
+                        </div>
+                        {columnOrder.map((colId) => {
+                          const col = columnsConfig[colId];
+                          if (!col) return null;
+                          const isHidden = hiddenColumns.includes(colId);
+                          return (
+                            <label
+                              key={colId}
+                              className="flex items-center px-3 py-1.5 hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer select-none"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={!isHidden}
+                                onChange={() => {
+                                  setHiddenColumns(prev =>
+                                    isHidden ? prev.filter(id => id !== colId) : [...prev, colId]
+                                  );
+                                }}
+                                className="h-3.5 w-3.5 text-blue-600 focus:ring-blue-500 border-slate-300 rounded mr-2.5 cursor-pointer"
+                              />
+                              <span>{col.label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Table Content */}
                 <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col min-h-[400px]">
                   <div className="overflow-x-auto w-full">
-                    <table className="w-full divide-y divide-slate-200">
-                      <thead className="bg-slate-50">
+                    <table className="w-full divide-y divide-slate-200" style={{ tableLayout: "fixed" }}>
+                      <thead className="bg-slate-50 border-b border-slate-200">
                         <tr>
-                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">SKU</th>
-                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Nombre</th>
-                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Línea</th>
-                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Familia</th>
-                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">EAN-13</th>
-                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">DUN-14</th>
-                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200" translate="no">ISP</th>
-                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Marca</th>
-                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Cad.</th>
-                          <th scope="col" className="px-2 py-2 text-left text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Estado</th>
-                          <th scope="col" className="px-1 py-2 text-center text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Barras</th>
-                          <th scope="col" className="px-1 py-2 text-center text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Trazab.</th>
-                          <th scope="col" className="px-1 py-2 text-center text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Editar</th>
-                          <th scope="col" className="px-1 py-2 text-center text-xs font-semibold text-slate-500 uppercase border-b-2 border-slate-200">Eliminar</th>
+                          {visibleColumns.map((colId) => {
+                            const col = columnsConfig[colId];
+                            if (!col) return null;
+
+                            const isSorted = sortColumn === colId;
+                            const isOver = dragOverColId === colId;
+                            const borderClass = isOver
+                              ? dragDirection === "left"
+                                ? "border-l-4 border-blue-500"
+                                : "border-r-4 border-blue-500"
+                              : "";
+
+                            // Disable native draggable if hovering the resize handle of ANY column
+                            const isDraggable = !hoveredResizeCol;
+
+                            return (
+                              <th
+                                key={colId}
+                                scope="col"
+                                draggable={isDraggable}
+                                onDragStart={(e) => handleDragStart(e, colId)}
+                                onDragOver={(e) => handleDragOver(e, colId)}
+                                onDragEnd={handleDragEnd}
+                                onDrop={(e) => handleDrop(e, colId)}
+                                onClick={() => handleSort(colId)}
+                                style={{ 
+                                  width: columnWidths[colId] || defaultWidths[colId] || 100,
+                                  minWidth: col.minWidth 
+                                }}
+                                className={`group relative px-3 py-3.5 text-xs font-bold text-slate-700 uppercase tracking-wider select-none transition-all duration-150 hover:bg-slate-100/85 ${borderClass} ${
+                                  isDraggable ? "cursor-grab active:cursor-grabbing" : ""
+                                } ${colId === "barras" || colId === "trazab" || colId === "editar" || colId === "eliminar" ? "text-center" : "text-left"}`}
+                              >
+                                <div className="flex items-center gap-1 justify-between pr-2">
+                                  <span className="truncate" title={col.label}>{col.label}</span>
+                                  {col.sortable && (
+                                    <span className={`text-[10px] font-mono leading-none flex-shrink-0 ${isSorted ? "text-blue-600 font-bold" : "text-slate-300"}`}>
+                                      {isSorted ? (sortDirection === "asc" ? "▲" : "▼") : "↕"}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Resize handle */}
+                                <div
+                                  draggable={false}
+                                  onMouseDown={(e) => handleResizeStart(e, colId)}
+                                  onMouseEnter={() => setHoveredResizeCol(colId)}
+                                  onMouseLeave={() => setHoveredResizeCol(null)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                  }}
+                                  className={`absolute right-0 top-0 bottom-0 w-2 hover:bg-blue-500/30 active:bg-blue-600/50 cursor-col-resize select-none z-20 transition-colors ${
+                                    hoveredResizeCol === colId ? "bg-blue-500/20" : ""
+                                  }`}
+                                />
+                              </th>
+                            );
+                          })}
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-slate-100 relative">
-                        {loading ? (
+                      <tbody className={`bg-white divide-y divide-slate-200 relative ${loading ? 'opacity-65 transition-opacity' : ''}`}>
+                        {loading && products.length === 0 ? (
                           <tr>
                             <td
-                              colSpan={14}
+                              colSpan={visibleColumns.length}
                               className="px-3 py-8 text-center text-slate-500 font-medium"
                             >
                               <div className="flex justify-center items-center space-x-2">
@@ -797,10 +1491,10 @@ export default function App() {
                               </div>
                             </td>
                           </tr>
-                        ) : filteredProducts.length === 0 ? (
+                        ) : paginatedProducts.length === 0 ? (
                           <tr>
                             <td
-                              colSpan={14}
+                              colSpan={visibleColumns.length}
                               className="px-3 py-8 text-center text-slate-500 font-medium bg-slate-50/50"
                             >
                               No se encontraron resultados. Intenta agregar un
@@ -808,57 +1502,16 @@ export default function App() {
                             </td>
                           </tr>
                         ) : (
-                          filteredProducts.map((p) => (
+                          paginatedProducts.map((p) => (
                             <tr
                               key={p.id}
-                              className="hover:bg-slate-50 transition-colors"
+                              className="hover:bg-slate-50 transition-colors border-b border-slate-200"
                             >
-                              <td className="px-2 py-2 whitespace-nowrap text-xs font-semibold text-slate-800">{p.sku}</td>
-                              <td className="px-2 py-2 text-xs text-slate-600 max-w-[200px] truncate" title={p.item_name}>{p.item_name}</td>
-                              <td className="px-2 py-2 text-xs text-slate-500 whitespace-nowrap">{p.business_line || "-"}</td>
-                              <td className="px-2 py-2 text-xs text-slate-500 whitespace-nowrap">{p.family || "-"}</td>
-                              <td className="px-2 py-2 whitespace-nowrap">
-                                {p.ean13 ? (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">{p.ean13}</span>
-                                ) : (
-                                  <span className="text-xs text-slate-400">-</span>
-                                )}
-                              </td>
-                              <td className="px-2 py-2 whitespace-nowrap">
-                                {p.dun14 ? (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">{p.dun14}</span>
-                                ) : (
-                                  <span className="text-xs text-slate-400">-</span>
-                                )}
-                              </td>
-                              <td className="px-2 py-2 whitespace-nowrap text-xs text-slate-500 font-mono" translate="no">{p.isp || "-"}</td>
-                              <td className="px-2 py-2 whitespace-nowrap text-xs text-slate-500">{p.marca || "-"}</td>
-                              <td className="px-2 py-2 whitespace-nowrap text-xs text-slate-500">{p.caducidad !== undefined && p.caducidad !== null ? `${p.caducidad}d` : "-"}</td>
-                              <td className="px-2 py-2 whitespace-nowrap">
-                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${p.activo !== false ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-800'}`}>
-                                  {p.activo !== false ? 'Activo' : 'Inact.'}
-                                </span>
-                              </td>
-                              <td className="px-1 py-2 whitespace-nowrap text-center">
-                                <button onClick={() => setPrintingProduct(p)} title="Imprimir Código de Barras" className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer">
-                                  <Printer className="w-4 h-4" />
-                                </button>
-                              </td>
-                              <td className="px-1 py-2 whitespace-nowrap text-center">
-                                <button onClick={() => setTracePrintingProduct(p)} title="Imprimir Trazabilidad" className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors cursor-pointer">
-                                  <ClipboardList className="w-4 h-4" />
-                                </button>
-                              </td>
-                              <td className="px-1 py-2 whitespace-nowrap text-center">
-                                <button onClick={() => { setEditingProduct(p); setIsFormOpen(true); }} title="Editar" className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer">
-                                  <Edit className="w-4 h-4" />
-                                </button>
-                              </td>
-                              <td className="px-1 py-2 whitespace-nowrap text-center">
-                                <button onClick={() => handleDelete(p.id!)} title="Eliminar" className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors cursor-pointer">
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </td>
+                              {visibleColumns.map((colId) => {
+                                const col = columnsConfig[colId];
+                                if (!col) return null;
+                                return <React.Fragment key={colId}>{col.render(p)}</React.Fragment>;
+                              })}
                             </tr>
                           ))
                         )}
@@ -866,10 +1519,58 @@ export default function App() {
                     </table>
                   </div>
 
-                  <div className="px-6 py-4 border-t bg-slate-50 border-slate-200">
+                  <div className="px-6 py-4 border-t bg-slate-50 border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
                     <p className="text-xs text-slate-500 font-medium">
-                      Mostrando {filteredProducts.length} productos
+                      Mostrando <span className="font-bold text-slate-800">{sortedProducts.length > 0 ? startIndex + 1 : 0}</span> al <span className="font-bold text-slate-800">{Math.min(startIndex + ITEMS_PER_PAGE, sortedProducts.length)}</span> de <span className="font-bold text-slate-800">{sortedProducts.length}</span> productos
                     </p>
+                    {totalPages > 1 && (
+                      <nav className="inline-flex -space-x-px rounded-md shadow-sm bg-white border border-slate-200" aria-label="Paginación de productos">
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                          disabled={currentPage === 1}
+                          className="relative inline-flex items-center rounded-l-md px-2 py-1.5 text-slate-400 hover:bg-slate-50 focus:z-20 disabled:opacity-40 disabled:hover:bg-transparent cursor-pointer transition-colors"
+                        >
+                          <span className="sr-only">Anterior</span>
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        
+                        {/* Page numbers */}
+                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                          .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                          .map((page, index, array) => {
+                            const showEllipsisBefore = index > 0 && page - array[index - 1] > 1;
+                            return (
+                              <React.Fragment key={page}>
+                                {showEllipsisBefore && (
+                                  <span className="relative inline-flex items-center px-2 py-1.5 text-xs font-semibold text-slate-500">
+                                    ...
+                                  </span>
+                                )}
+                                <button
+                                  onClick={() => setCurrentPage(page)}
+                                  aria-current={currentPage === page ? "page" : undefined}
+                                  className={`relative inline-flex items-center px-3 py-1.5 text-xs font-semibold focus:z-20 cursor-pointer transition-colors ${
+                                    currentPage === page
+                                      ? "z-10 bg-blue-600 text-white"
+                                      : "text-slate-900 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  {page}
+                                </button>
+                              </React.Fragment>
+                            );
+                          })}
+
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                          disabled={currentPage === totalPages}
+                          className="relative inline-flex items-center rounded-r-md px-2 py-1.5 text-slate-400 hover:bg-slate-50 focus:z-20 disabled:opacity-40 disabled:hover:bg-transparent cursor-pointer transition-colors"
+                        >
+                          <span className="sr-only">Siguiente</span>
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </nav>
+                    )}
                   </div>
                 </div>
               </>
@@ -1400,10 +2101,10 @@ export default function App() {
             {currentView === "configuracion" && (
               <div>
                 {/* Tab bar */}
-                <div className="flex border-b border-slate-200 mb-6 bg-white rounded-t-xl">
+                <div className="flex border-b border-slate-200 mb-6 bg-white rounded-t-xl overflow-x-auto">
                   <button
                     onClick={() => setConfigTab("operadores")}
-                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors border-b-2 cursor-pointer ${
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors border-b-2 cursor-pointer whitespace-nowrap ${
                       configTab === "operadores"
                         ? "border-blue-500 text-blue-600"
                         : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
@@ -1413,8 +2114,30 @@ export default function App() {
                     <span>Operadores de Línea</span>
                   </button>
                   <button
+                    onClick={() => setConfigTab("lineas")}
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors border-b-2 cursor-pointer whitespace-nowrap ${
+                      configTab === "lineas"
+                        ? "border-blue-500 text-blue-600"
+                        : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                    }`}
+                  >
+                    <Cpu className="w-4 h-4" />
+                    <span>Líneas de Proceso</span>
+                  </button>
+                  <button
+                    onClick={() => setConfigTab("whatsapp")}
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors border-b-2 cursor-pointer whitespace-nowrap ${
+                      configTab === "whatsapp"
+                        ? "border-blue-500 text-blue-600"
+                        : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                    }`}
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>WhatsApp Bot</span>
+                  </button>
+                  <button
                     onClick={() => setConfigTab("basedatos")}
-                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors border-b-2 cursor-pointer ${
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors border-b-2 cursor-pointer whitespace-nowrap ${
                       configTab === "basedatos"
                         ? "border-blue-500 text-blue-600"
                         : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
@@ -1425,7 +2148,7 @@ export default function App() {
                   </button>
                   <button
                     onClick={() => setConfigTab("impresoras")}
-                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors border-b-2 cursor-pointer ${
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors border-b-2 cursor-pointer whitespace-nowrap ${
                       configTab === "impresoras"
                         ? "border-blue-500 text-blue-600"
                         : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
@@ -1435,8 +2158,19 @@ export default function App() {
                     <span>Impresoras</span>
                   </button>
                   <button
+                    onClick={() => setConfigTab("empaques")}
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors border-b-2 cursor-pointer whitespace-nowrap ${
+                      configTab === "empaques"
+                        ? "border-blue-500 text-blue-600"
+                        : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                    }`}
+                  >
+                    <Tag className="w-4 h-4" />
+                    <span>Envases</span>
+                  </button>
+                  <button
                     onClick={() => setConfigTab("instalacion")}
-                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors border-b-2 cursor-pointer ${
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors border-b-2 cursor-pointer whitespace-nowrap ${
                       configTab === "instalacion"
                         ? "border-blue-500 text-blue-600"
                         : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
@@ -1447,7 +2181,7 @@ export default function App() {
                   </button>
                   <button
                     onClick={() => setConfigTab("consola")}
-                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors border-b-2 cursor-pointer ${
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors border-b-2 cursor-pointer whitespace-nowrap ${
                       configTab === "consola"
                         ? "border-blue-500 text-blue-600"
                         : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
@@ -1461,6 +2195,16 @@ export default function App() {
                 {/* Operadores tab */}
                 {configTab === "operadores" && (
                   <EmpleadosManager onShowToast={showToast} />
+                )}
+
+                {/* Líneas de Proceso tab */}
+                {configTab === "lineas" && (
+                  <LineasProcesoManager onShowToast={showToast} />
+                )}
+
+                {/* WhatsApp Bot tab */}
+                {configTab === "whatsapp" && (
+                  <WhatsAppConfigTab theme={theme} onShowToast={showToast} />
                 )}
 
                 {/* Base de Datos tab */}
@@ -1515,7 +2259,7 @@ export default function App() {
                         <Monitor className="w-6 h-6" /> Instalar en otro computador
                       </h2>
                       <p className="text-blue-100 text-sm">
-                        Instala TraceLabel Bridge en cualquier PC con impresora de etiquetas. Los datos se sincronizan automáticamente vía la nube.
+                        Instala AquaOps Bridge en cualquier PC con impresora de etiquetas. Los datos se sincronizan automáticamente vía la nube.
                       </p>
                     </div>
 
@@ -1587,10 +2331,10 @@ export default function App() {
                             <button
                               onClick={() => {
                                 const bat = String.raw`@echo off
-title TraceLabel - Instalando...
+title AquaOps - Instalando...
 echo.
 echo ====================================================
-echo   TraceLabel Bridge - Instalador Automatico
+echo   AquaOps Bridge - Instalador Automatico
 echo ====================================================
 echo.
 
@@ -1610,7 +2354,7 @@ if %errorlevel% neq 0 (
 for /f "tokens=*" %%v in ('node --version') do echo [OK] Node.js %%v encontrado
 
 REM -- 2. Crear carpeta de trabajo
-set "ZEBRA_DIR=%USERPROFILE%\TraceLabel"
+set "ZEBRA_DIR=%USERPROFILE%\AquaOps"
 if not exist "%ZEBRA_DIR%" mkdir "%ZEBRA_DIR%"
 echo [OK] Carpeta: %ZEBRA_DIR%
 
@@ -1619,7 +2363,7 @@ echo [..] Deteniendo bridge anterior...
 for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":3000 " ^| findstr "LISTENING"') do (
     taskkill /PID %%a /F >nul 2>&1
 )
-schtasks /end /tn "TraceLabel" >nul 2>&1
+schtasks /end /tn "AquaOps" >nul 2>&1
 timeout /t 2 /nobreak >nul
 echo [OK] Bridge anterior detenido
 
@@ -1649,20 +2393,20 @@ echo [OK] Lanzador invisible creado
 
 REM -- 7. Configurar inicio automatico al encender PC
 echo [..] Configurando inicio automatico...
-schtasks /delete /tn "TraceLabel" /f >nul 2>&1
-schtasks /create /tn "TraceLabel" /tr "wscript \"%ZEBRA_DIR%\launch-silent.vbs\"" /sc onlogon /rl highest /f >nul 2>&1
+schtasks /delete /tn "AquaOps" /f >nul 2>&1
+schtasks /create /tn "AquaOps" /tr "wscript \"%ZEBRA_DIR%\launch-silent.vbs\"" /sc onlogon /rl highest /f >nul 2>&1
 if %errorlevel% equ 0 (
     echo [OK] Tarea programada creada
 ) else (
     set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
-    copy /Y "%ZEBRA_DIR%\launch-silent.vbs" "%STARTUP%\TraceLabel.vbs" >nul 2>&1
+    copy /Y "%ZEBRA_DIR%\launch-silent.vbs" "%STARTUP%\AquaOps.vbs" >nul 2>&1
     echo [OK] Inicio automatico via carpeta Startup
 )
 
 REM -- 8. Abrir firewall
 echo [..] Configurando firewall...
-netsh advfirewall firewall delete rule name="TraceLabel" >nul 2>&1
-netsh advfirewall firewall add rule name="TraceLabel" dir=in action=allow protocol=TCP localport=3000 >nul 2>&1
+netsh advfirewall firewall delete rule name="AquaOps" >nul 2>&1
+netsh advfirewall firewall add rule name="AquaOps" dir=in action=allow protocol=TCP localport=3000 >nul 2>&1
 echo [OK] Firewall configurado
 
 REM -- 9. Iniciar ahora (invisible, sin ventana)
@@ -1693,16 +2437,16 @@ timeout /t 15
                                 const url = URL.createObjectURL(blob);
                                 const a = document.createElement('a');
                                 a.href = url;
-                                a.download = 'instalar_tracelabel.bat';
+                                a.download = 'instalar_aquaops.bat';
                                 document.body.appendChild(a);
                                 a.click();
                                 document.body.removeChild(a);
                                 URL.revokeObjectURL(url);
-                                showToast('Descargado: instalar_tracelabel.bat', 'success');
+                                showToast('Descargado: instalar_aquaops.bat', 'success');
                               }}
                               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
                             >
-                              <Download className="w-4 h-4" /> Descargar instalar_tracelabel.bat
+                              <Download className="w-4 h-4" /> Descargar instalar_aquaops.bat
                             </button>
                             <p className="text-[10px] text-slate-400 mt-1">Doble clic para ejecutar. NO necesita Git ni npm.</p>
                           </div>
@@ -1736,7 +2480,932 @@ timeout /t 15
                 {configTab === "consola" && (
                   <SystemConsole />
                 )}
+
+                {configTab === "empaques" && (
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-800">
+                          Configuración de Envases
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Administra los tipos de envase primario, envase secundario y las tapas asociadas.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex border-b border-slate-200 mb-6">
+                      <button
+                        onClick={() => setEnvaseSubTab("primarios")}
+                        className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
+                          envaseSubTab === "primarios"
+                            ? "border-blue-500 text-blue-600"
+                            : "border-transparent text-slate-500 hover:text-slate-700"
+                        }`}
+                      >
+                        Envases Primarios
+                      </button>
+                      <button
+                        onClick={() => setEnvaseSubTab("secundarios")}
+                        className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
+                          envaseSubTab === "secundarios"
+                            ? "border-blue-500 text-blue-600"
+                            : "border-transparent text-slate-500 hover:text-slate-700"
+                        }`}
+                      >
+                        Envases Secundarios
+                      </button>
+                      <button
+                        onClick={() => setEnvaseSubTab("tapas")}
+                        className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
+                          envaseSubTab === "tapas"
+                            ? "border-blue-500 text-blue-600"
+                            : "border-transparent text-slate-500 hover:text-slate-700"
+                        }`}
+                      >
+                        Tapas
+                      </button>
+                    </div>
+
+                    {envaseSubTab === "primarios" && (
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Form panel */}
+                        <div className="lg:col-span-1 bg-slate-50 rounded-xl p-5 border border-slate-200/60 h-fit">
+                          <h4 className="text-sm font-bold text-slate-700 mb-4">
+                            Agregar Envase Primario
+                          </h4>
+                          <form
+                            onSubmit={async (e) => {
+                              e.preventDefault();
+                              const form = e.currentTarget;
+                              const formData = new FormData(form);
+                              const codigo = String(formData.get("codigo") || "").trim().toUpperCase();
+                              const nombre = String(formData.get("nombre") || "").trim().toUpperCase();
+
+                              if (!nombre) {
+                                showToast("El nombre del envase es obligatorio", "error");
+                                return;
+                              }
+
+                              try {
+                                const res = await fetch("/api/tipos-envase-primario", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ codigo, nombre }),
+                                });
+                                if (!res.ok) {
+                                  const err = await res.json();
+                                  throw new Error(err.error || "Error al agregar");
+                                }
+                                showToast("Envase primario registrado con éxito", "success");
+                                form.reset();
+                                fetchTiposEnvasePrimario();
+                              } catch (err: any) {
+                                showToast(err.message, "error");
+                              }
+                            }}
+                          >
+                            <div className="space-y-4">
+                              <div>
+                                <label htmlFor="codigo-envase-primario" className="block text-xs font-bold text-slate-750 mb-1">
+                                  Código del Envase Primario
+                                </label>
+                                <input
+                                  id="codigo-envase-primario"
+                                  name="codigo"
+                                  type="text"
+                                  placeholder="Ej: 209, 202, 300"
+                                  className="block w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-800 focus:ring-blue-500 focus:border-blue-500 font-mono"
+                                />
+                              </div>
+                              <div>
+                                <label htmlFor="nombre-envase-primario" className="block text-xs font-bold text-slate-750 mb-1">
+                                  Nombre del Envase Primario *
+                                </label>
+                                <input
+                                  id="nombre-envase-primario"
+                                  name="nombre"
+                                  type="text"
+                                  placeholder="Ej: BIDON PLASTICO APILABLE AZUL"
+                                  className="block w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-800 focus:ring-blue-500 focus:border-blue-500"
+                                  required
+                                />
+                              </div>
+                              <button
+                                type="submit"
+                                className="w-full flex justify-center py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm cursor-pointer"
+                              >
+                                Guardar Envase
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+
+                        {/* List panel */}
+                        {/* List panel */}
+                        <div className="lg:col-span-2 space-y-4">
+                          {/* Search bar */}
+                          <div className="relative">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                            <input
+                              type="text"
+                              placeholder="Buscar por código o nombre..."
+                              value={envasePrimarioSearch}
+                              onChange={(e) => setEnvasePrimarioSearch(e.target.value)}
+                              className="pl-9 block w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-800 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          </div>
+
+                          <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                            <table className="w-full divide-y divide-slate-200">
+                              <thead className="bg-slate-50">
+                                <tr>
+                                  <th
+                                    scope="col"
+                                    onClick={() => {
+                                      const nextDir = envasePrimarioSort.column === 'codigo' && envasePrimarioSort.direction === 'asc' ? 'desc' : 'asc';
+                                      setEnvasePrimarioSort({ column: 'codigo', direction: nextDir });
+                                    }}
+                                    className="px-5 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 select-none"
+                                  >
+                                    <div className="flex items-center gap-1">
+                                      Código
+                                      <span className="text-slate-400">
+                                        {envasePrimarioSort.column === 'codigo' ? (envasePrimarioSort.direction === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}
+                                      </span>
+                                    </div>
+                                  </th>
+                                  <th
+                                    scope="col"
+                                    onClick={() => {
+                                      const nextDir = envasePrimarioSort.column === 'nombre' && envasePrimarioSort.direction === 'asc' ? 'desc' : 'asc';
+                                      setEnvasePrimarioSort({ column: 'nombre', direction: nextDir });
+                                    }}
+                                    className="px-5 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 select-none"
+                                  >
+                                    <div className="flex items-center gap-1">
+                                      Nombre
+                                      <span className="text-slate-400">
+                                        {envasePrimarioSort.column === 'nombre' ? (envasePrimarioSort.direction === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}
+                                      </span>
+                                    </div>
+                                  </th>
+                                  <th scope="col" className="px-5 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Estado</th>
+                                  <th scope="col" className="px-5 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Acciones</th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-slate-200">
+                                {tiposEnvasePrimario
+                                  .filter((tipo) => {
+                                    const term = envasePrimarioSearch.toLowerCase().trim();
+                                    if (!term) return true;
+                                    return (
+                                      (tipo.codigo || "").toLowerCase().includes(term) ||
+                                      (tipo.nombre || "").toLowerCase().includes(term)
+                                    );
+                                  })
+                                  .sort((a, b) => {
+                                    const col = envasePrimarioSort.column;
+                                    const valA = (a[col] || "").trim();
+                                    const valB = (b[col] || "").trim();
+
+                                    if (col === 'codigo') {
+                                      const numA = parseInt(valA, 10);
+                                      const numB = parseInt(valB, 10);
+                                      if (!isNaN(numA) && !isNaN(numB)) {
+                                        return envasePrimarioSort.direction === 'asc' ? numA - numB : numB - numA;
+                                      }
+                                    }
+
+                                    return envasePrimarioSort.direction === 'asc'
+                                      ? valA.localeCompare(valB)
+                                      : valB.localeCompare(valA);
+                                  })
+                                  .map((tipo) => {
+                                    const isSeed = false;
+                                    const isEditing = editingEnvasePrimarioId === tipo.id;
+                                    return (
+                                      <tr key={tipo.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-5 py-3.5 whitespace-nowrap text-sm font-mono text-slate-600">
+                                          {isEditing ? (
+                                            <input
+                                              type="text"
+                                              value={editingEnvasePrimarioCode}
+                                              onChange={(e) => setEditingEnvasePrimarioCode(e.target.value.toUpperCase())}
+                                              className="border border-slate-300 rounded px-2.5 py-1 text-sm bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 w-full max-w-[120px] font-mono"
+                                              placeholder="Código"
+                                            />
+                                          ) : (
+                                            tipo.codigo || "-"
+                                          )}
+                                        </td>
+                                        <td className="px-5 py-3.5 whitespace-nowrap text-sm font-semibold text-slate-800">
+                                          {isEditing ? (
+                                            <input
+                                              type="text"
+                                              value={editingEnvasePrimarioName}
+                                              onChange={(e) => setEditingEnvasePrimarioName(e.target.value.toUpperCase())}
+                                              className="border border-slate-300 rounded px-2.5 py-1 text-sm bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 w-full max-w-[240px]"
+                                              placeholder="Nombre del envase"
+                                            />
+                                          ) : (
+                                            tipo.nombre
+                                          )}
+                                        </td>
+                                        <td className="px-5 py-3.5 whitespace-nowrap text-center text-sm">
+                                          <button
+                                            type="button"
+                                            onClick={async () => {
+                                              try {
+                                                const newActivo = tipo.activo === 0 ? 1 : 0;
+                                                const res = await fetch(`/api/tipos-envase-primario/${tipo.id}`, {
+                                                  method: "PUT",
+                                                  headers: { "Content-Type": "application/json" },
+                                                  body: JSON.stringify({
+                                                    codigo: tipo.codigo,
+                                                    nombre: tipo.nombre,
+                                                    activo: newActivo
+                                                  }),
+                                                });
+                                                if (!res.ok) {
+                                                  const err = await res.json();
+                                                  throw new Error(err.error || "Error al actualizar");
+                                                }
+                                                showToast(newActivo === 1 ? "Envase habilitado" : "Envase inhabilitado", "success");
+                                                fetchTiposEnvasePrimario();
+                                                fetchProducts();
+                                              } catch (err: any) {
+                                                showToast(err.message, "error");
+                                              }
+                                            }}
+                                            className="relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                                            style={{ backgroundColor: (tipo.activo ?? 1) === 1 ? '#3b82f6' : '#cbd5e1' }}
+                                          >
+                                            <span
+                                              className="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                                              style={{ transform: (tipo.activo ?? 1) === 1 ? 'translateX(20px)' : 'translateX(0px)' }}
+                                            />
+                                          </button>
+                                        </td>
+                                        <td className="px-5 py-3.5 whitespace-nowrap text-center text-sm">
+                                          {isEditing ? (
+                                            <>
+                                              <button
+                                                onClick={async () => {
+                                                  const nombre = editingEnvasePrimarioName.trim().toUpperCase();
+                                                  if (!nombre) {
+                                                    showToast("El nombre del envase es obligatorio", "error");
+                                                    return;
+                                                  }
+                                                  try {
+                                                    const res = await fetch(`/api/tipos-envase-primario/${tipo.id}`, {
+                                                      method: "PUT",
+                                                      headers: { "Content-Type": "application/json" },
+                                                      body: JSON.stringify({
+                                                        codigo: editingEnvasePrimarioCode,
+                                                        nombre: nombre,
+                                                        activo: tipo.activo,
+                                                      }),
+                                                    });
+                                                    if (!res.ok) {
+                                                      const err = await res.json();
+                                                      throw new Error(err.error || "Error al actualizar");
+                                                    }
+                                                    showToast("Envase primario actualizado", "success");
+                                                    setEditingEnvasePrimarioId(null);
+                                                    fetchTiposEnvasePrimario();
+                                                    fetchProducts();
+                                                  } catch (err: any) {
+                                                    showToast(err.message, "error");
+                                                  }
+                                                }}
+                                                className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded transition-colors mr-2 cursor-pointer inline-flex items-center justify-center"
+                                                title="Guardar"
+                                              >
+                                                <Check className="w-4 h-4" />
+                                              </button>
+                                              <button
+                                                onClick={() => setEditingEnvasePrimarioId(null)}
+                                                className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors cursor-pointer inline-flex items-center justify-center"
+                                                title="Cancelar"
+                                              >
+                                                <X className="w-4 h-4" />
+                                              </button>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <button
+                                                disabled={isSeed}
+                                                onClick={() => {
+                                                  setEditingEnvasePrimarioId(tipo.id);
+                                                  setEditingEnvasePrimarioCode(tipo.codigo || "");
+                                                  setEditingEnvasePrimarioName(tipo.nombre);
+                                                }}
+                                                className={`p-1.5 rounded transition-colors mr-2 ${
+                                                  isSeed
+                                                    ? "text-slate-300 bg-transparent cursor-not-allowed"
+                                                    : "text-blue-500 hover:text-blue-700 hover:bg-blue-50 cursor-pointer"
+                                                }`}
+                                                title={isSeed ? "Envase del sistema protegido" : "Editar envase"}
+                                              >
+                                                <Edit className="w-4 h-4" />
+                                              </button>
+                                              <button
+                                                disabled={isSeed}
+                                                onClick={async () => {
+                                                  if (confirm(`¿Estás seguro de que deseas eliminar el tipo de envase primario "${tipo.nombre}"?`)) {
+                                                    try {
+                                                      const res = await fetch(`/api/tipos-envase-primario/${tipo.id}`, {
+                                                        method: "DELETE",
+                                                      });
+                                                      if (!res.ok) {
+                                                        const err = await res.json();
+                                                        throw new Error(err.error || "Error al eliminar");
+                                                      }
+                                                      showToast("Envase primario eliminado", "success");
+                                                      fetchTiposEnvasePrimario();
+                                                    } catch (err: any) {
+                                                      showToast(err.message, "error");
+                                                    }
+                                                  }
+                                                }}
+                                                className={`p-1.5 rounded transition-colors ${
+                                                  isSeed
+                                                    ? "text-slate-300 bg-transparent cursor-not-allowed"
+                                                    : "text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer"
+                                                }`}
+                                                title={isSeed ? "Envase del sistema protegido" : "Eliminar envase"}
+                                              >
+                                                <Trash2 className="w-4 h-4" />
+                                              </button>
+                                            </>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {envaseSubTab === "secundarios" && (
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Form panel */}
+                        <div className="lg:col-span-1 bg-slate-50 rounded-xl p-5 border border-slate-200/60 h-fit">
+                          <h4 className="text-sm font-bold text-slate-700 mb-4">
+                            Agregar Nuevo Envase Secundario
+                          </h4>
+                          <form
+                            onSubmit={async (e) => {
+                              e.preventDefault();
+                              const form = e.currentTarget;
+                              const formData = new FormData(form);
+                              const nombre = String(formData.get("nombre") || "").trim().toUpperCase();
+                              const requiere_empaque_grupal = formData.get("requiere_empaque_grupal") === "on";
+
+                              if (!nombre) {
+                                showToast("El nombre del envase es obligatorio", "error");
+                                return;
+                              }
+
+                              try {
+                                const res = await fetch("/api/tipos-empaque-secundario", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ nombre, requiere_empaque_grupal }),
+                                });
+                                if (!res.ok) {
+                                  const err = await res.json();
+                                  throw new Error(err.error || "Error al agregar");
+                                }
+                                showToast("Envase secundario registrado con éxito", "success");
+                                form.reset();
+                                fetchTiposEmpaque();
+                              } catch (err: any) {
+                                showToast(err.message, "error");
+                              }
+                            }}
+                          >
+                            <div className="space-y-4">
+                              <div>
+                                <label htmlFor="nombre-envase" className="block text-xs font-bold text-slate-750 mb-1">
+                                  Nombre del Envase Secundario *
+                                </label>
+                                <input
+                                  id="nombre-envase"
+                                  name="nombre"
+                                  type="text"
+                                  placeholder="Ej: SACO, BALDE, CAJA"
+                                  className="block w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-800 focus:ring-blue-500 focus:border-blue-500"
+                                  required
+                                />
+                              </div>
+                              <div className="flex items-center pt-2">
+                                <input
+                                  id="requiere-empaque-grupal"
+                                  name="requiere_empaque_grupal"
+                                  type="checkbox"
+                                  defaultChecked={true}
+                                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded cursor-pointer"
+                                />
+                                <label htmlFor="requiere-empaque-grupal" className="ml-2 block text-xs font-semibold text-slate-700 cursor-pointer">
+                                  Requiere Empaque Grupal
+                                </label>
+                              </div>
+                              <p className="text-[10px] text-slate-400 leading-relaxed">
+                                * Si está activo, los pallets de los productos asociados se calcularán utilizando el divisor de <strong>Cant. Grupal</strong>. Si no, se usará <strong>Cant. Individual</strong>.
+                              </p>
+                              <button
+                                type="submit"
+                                className="w-full flex justify-center py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm cursor-pointer"
+                              >
+                                Guardar Envase
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+
+                        {/* List panel */}
+                        <div className="lg:col-span-2 overflow-x-auto border border-slate-200 rounded-xl">
+                          <table className="w-full divide-y divide-slate-200">
+                            <thead className="bg-slate-50">
+                              <tr>
+                                <th scope="col" className="px-5 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Nombre</th>
+                                <th scope="col" className="px-5 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Regla de Cálculo</th>
+                                <th scope="col" className="px-5 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Acciones</th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-slate-200">
+                              {tiposEmpaque.map((tipo) => {
+                                const isSeed = false;
+                                const isEditing = editingEnvaseSecundarioId === tipo.id;
+                                return (
+                                  <tr key={tipo.id} className="hover:bg-slate-50 transition-colors">
+                                    <td className="px-5 py-3.5 whitespace-nowrap text-sm font-semibold text-slate-800">
+                                      {isEditing ? (
+                                        <input
+                                          type="text"
+                                          value={editingEnvaseSecundarioName}
+                                          disabled={isSeed}
+                                          onChange={(e) => setEditingEnvaseSecundarioName(e.target.value.toUpperCase())}
+                                          className={`border border-slate-300 rounded px-2.5 py-1 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 w-full max-w-[200px] ${
+                                            isSeed ? "bg-slate-50 text-slate-400 cursor-not-allowed border-slate-200" : "bg-white"
+                                          }`}
+                                          placeholder="Nombre del envase"
+                                        />
+                                      ) : (
+                                        tipo.nombre
+                                      )}
+                                    </td>
+                                    <td className="px-5 py-3.5 whitespace-nowrap text-xs text-slate-650">
+                                      {isEditing ? (
+                                        <label className="flex items-center cursor-pointer">
+                                          <input
+                                            type="checkbox"
+                                            checked={editingEnvaseSecundarioGrupal}
+                                            onChange={(e) => setEditingEnvaseSecundarioGrupal(e.target.checked)}
+                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded mr-2 cursor-pointer"
+                                          />
+                                          <span className="text-xs text-slate-700 font-semibold select-none">
+                                            Empaque Grupal
+                                          </span>
+                                        </label>
+                                      ) : (
+                                        tipo.requiere_empaque_grupal === 1 ? (
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200">
+                                            Empaque Grupal (cant_grupal)
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200">
+                                            Empaque Individual (cant_individual)
+                                          </span>
+                                        )
+                                      )}
+                                    </td>
+                                    <td className="px-5 py-3.5 whitespace-nowrap text-center text-sm">
+                                      {isEditing ? (
+                                        <>
+                                          <button
+                                            onClick={async () => {
+                                              const nombre = editingEnvaseSecundarioName.trim().toUpperCase();
+                                              if (!nombre) {
+                                                showToast("El nombre del envase es obligatorio", "error");
+                                                return;
+                                              }
+                                              try {
+                                                const res = await fetch(`/api/tipos-empaque-secundario/${tipo.id}`, {
+                                                  method: "PUT",
+                                                  headers: { "Content-Type": "application/json" },
+                                                  body: JSON.stringify({
+                                                    nombre,
+                                                    requiere_empaque_grupal: editingEnvaseSecundarioGrupal,
+                                                  }),
+                                                });
+                                                if (!res.ok) {
+                                                  const err = await res.json();
+                                                  throw new Error(err.error || "Error al actualizar");
+                                                }
+                                                showToast("Envase secundario actualizado", "success");
+                                                setEditingEnvaseSecundarioId(null);
+                                                fetchTiposEmpaque();
+                                                fetchProducts();
+                                              } catch (err: any) {
+                                                showToast(err.message, "error");
+                                              }
+                                            }}
+                                            className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded transition-colors mr-2 cursor-pointer inline-flex items-center justify-center"
+                                            title="Guardar"
+                                          >
+                                            <Check className="w-4 h-4" />
+                                          </button>
+                                          <button
+                                            onClick={() => setEditingEnvaseSecundarioId(null)}
+                                            className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors cursor-pointer inline-flex items-center justify-center"
+                                            title="Cancelar"
+                                          >
+                                            <X className="w-4 h-4" />
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <button
+                                            onClick={() => {
+                                              setEditingEnvaseSecundarioId(tipo.id);
+                                              setEditingEnvaseSecundarioName(tipo.nombre);
+                                              setEditingEnvaseSecundarioGrupal(tipo.requiere_empaque_grupal === 1);
+                                            }}
+                                            className="p-1.5 rounded transition-colors mr-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 cursor-pointer"
+                                            title="Editar envase"
+                                          >
+                                            <Edit className="w-4 h-4" />
+                                          </button>
+                                          <button
+                                            disabled={isSeed}
+                                            onClick={async () => {
+                                              if (confirm(`¿Estás seguro de que deseas eliminar el tipo de empaque "${tipo.nombre}"?`)) {
+                                                try {
+                                                  const res = await fetch(`/api/tipos-empaque-secundario/${tipo.id}`, {
+                                                    method: "DELETE",
+                                                  });
+                                                  if (!res.ok) {
+                                                    const err = await res.json();
+                                                    throw new Error(err.error || "Error al eliminar");
+                                                  }
+                                                  showToast("Envase secundario eliminado", "success");
+                                                  fetchTiposEmpaque();
+                                                } catch (err: any) {
+                                                  showToast(err.message, "error");
+                                                }
+                                              }
+                                            }}
+                                            className={`p-1.5 rounded transition-colors ${
+                                              isSeed
+                                                ? "text-slate-300 bg-transparent cursor-not-allowed"
+                                                : "text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer"
+                                            }`}
+                                            title={isSeed ? "Empaque del sistema protegido" : "Eliminar empaque"}
+                                          >
+                                            <Trash2 className="w-4 h-4" />
+                                          </button>
+                                        </>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {envaseSubTab === "tapas" && (
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Form panel */}
+                        <div className="lg:col-span-1 bg-slate-50 rounded-xl p-5 border border-slate-200/60 h-fit">
+                          <h4 className="text-sm font-bold text-slate-700 mb-4">
+                            Agregar Nueva Tapa
+                          </h4>
+                          <form
+                            onSubmit={async (e) => {
+                              e.preventDefault();
+                              const form = e.currentTarget;
+                              const formData = new FormData(form);
+                              const codigo = String(formData.get("codigo") || "").trim().toUpperCase();
+                              const nombre = String(formData.get("nombre") || "").trim().toUpperCase();
+
+                              if (!nombre) {
+                                showToast("El nombre de la tapa es obligatorio", "error");
+                                return;
+                              }
+
+                              try {
+                                const res = await fetch("/api/tipos-tapa", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ codigo, nombre }),
+                                });
+                                if (!res.ok) {
+                                  const err = await res.json();
+                                  throw new Error(err.error || "Error al agregar");
+                                }
+                                showToast("Tapa registrada con éxito", "success");
+                                form.reset();
+                                fetchTiposTapa();
+                              } catch (err: any) {
+                                showToast(err.message, "error");
+                              }
+                            }}
+                          >
+                            <div className="space-y-4">
+                              <div>
+                                <label htmlFor="codigo-tapa" className="block text-xs font-bold text-slate-750 mb-1">
+                                  Código de la Tapa
+                                </label>
+                                <input
+                                  id="codigo-tapa"
+                                  name="codigo"
+                                  type="text"
+                                  placeholder="Ej: 600, 605, 2015"
+                                  className="block w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-800 focus:ring-blue-500 focus:border-blue-500 font-mono"
+                                />
+                              </div>
+                              <div>
+                                <label htmlFor="nombre-tapa" className="block text-xs font-bold text-slate-750 mb-1">
+                                  Nombre de la Tapa *
+                                </label>
+                                <input
+                                  id="nombre-tapa"
+                                  name="nombre"
+                                  type="text"
+                                  placeholder="Ej: TAPA AZUL SINEA"
+                                  className="block w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-800 focus:ring-blue-500 focus:border-blue-500"
+                                  required
+                                />
+                              </div>
+                              <button
+                                type="submit"
+                                className="w-full flex justify-center py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm cursor-pointer"
+                              >
+                                Guardar Tapa
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+
+                        {/* List panel */}
+                        <div className="lg:col-span-2 space-y-4">
+                          {/* Search bar */}
+                          <div className="relative">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                            <input
+                              type="text"
+                              placeholder="Buscar por código o nombre..."
+                              value={tapaSearch}
+                              onChange={(e) => setTapaSearch(e.target.value)}
+                              className="pl-9 block w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-slate-800 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          </div>
+
+                          <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                            <table className="w-full divide-y divide-slate-200">
+                              <thead className="bg-slate-50">
+                                <tr>
+                                  <th
+                                    scope="col"
+                                    onClick={() => {
+                                      const nextDir = tapaSort.column === 'codigo' && tapaSort.direction === 'asc' ? 'desc' : 'asc';
+                                      setTapaSort({ column: 'codigo', direction: nextDir });
+                                    }}
+                                    className="px-5 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 select-none"
+                                  >
+                                    <div className="flex items-center gap-1">
+                                      Código
+                                      <span className="text-slate-400">
+                                        {tapaSort.column === 'codigo' ? (tapaSort.direction === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}
+                                      </span>
+                                    </div>
+                                  </th>
+                                  <th
+                                    scope="col"
+                                    onClick={() => {
+                                      const nextDir = tapaSort.column === 'nombre' && tapaSort.direction === 'asc' ? 'desc' : 'asc';
+                                      setTapaSort({ column: 'nombre', direction: nextDir });
+                                    }}
+                                    className="px-5 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 select-none"
+                                  >
+                                    <div className="flex items-center gap-1">
+                                      Nombre
+                                      <span className="text-slate-400">
+                                        {tapaSort.column === 'nombre' ? (tapaSort.direction === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}
+                                      </span>
+                                    </div>
+                                  </th>
+                                  <th scope="col" className="px-5 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Estado</th>
+                                  <th scope="col" className="px-5 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Acciones</th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-slate-200">
+                                {tiposTapa
+                                  .filter((tipo) => {
+                                    const term = tapaSearch.toLowerCase().trim();
+                                    if (!term) return true;
+                                    return (
+                                      (tipo.codigo || "").toLowerCase().includes(term) ||
+                                      (tipo.nombre || "").toLowerCase().includes(term)
+                                    );
+                                  })
+                                  .sort((a, b) => {
+                                    const col = tapaSort.column;
+                                    const valA = (a[col] || "").trim();
+                                    const valB = (b[col] || "").trim();
+
+                                    if (col === 'codigo') {
+                                      const numA = parseInt(valA, 10);
+                                      const numB = parseInt(valB, 10);
+                                      if (!isNaN(numA) && !isNaN(numB)) {
+                                        return tapaSort.direction === 'asc' ? numA - numB : numB - numA;
+                                      }
+                                    }
+
+                                    return tapaSort.direction === 'asc'
+                                      ? valA.localeCompare(valB)
+                                      : valB.localeCompare(valA);
+                                  })
+                                  .map((tipo) => {
+                                    const isEditing = editingTapaId === tipo.id;
+                                    return (
+                                      <tr key={tipo.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-5 py-3.5 whitespace-nowrap text-sm font-mono text-slate-600">
+                                          {isEditing ? (
+                                            <input
+                                              type="text"
+                                              value={editingTapaCode}
+                                              onChange={(e) => setEditingTapaCode(e.target.value.toUpperCase())}
+                                              className="border border-slate-300 rounded px-2.5 py-1 text-sm bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 w-full max-w-[120px] font-mono"
+                                              placeholder="Código"
+                                            />
+                                          ) : (
+                                            tipo.codigo || "-"
+                                          )}
+                                        </td>
+                                        <td className="px-5 py-3.5 whitespace-nowrap text-sm font-semibold text-slate-800">
+                                          {isEditing ? (
+                                            <input
+                                              type="text"
+                                              value={editingTapaName}
+                                              onChange={(e) => setEditingTapaName(e.target.value.toUpperCase())}
+                                              className="border border-slate-300 rounded px-2.5 py-1 text-sm bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 w-full max-w-[240px]"
+                                              placeholder="Nombre de la tapa"
+                                            />
+                                          ) : (
+                                            tipo.nombre
+                                          )}
+                                        </td>
+                                        <td className="px-5 py-3.5 whitespace-nowrap text-center text-sm">
+                                          <button
+                                            type="button"
+                                            onClick={async () => {
+                                              try {
+                                                const newActivo = tipo.activo === 0 ? 1 : 0;
+                                                const res = await fetch(`/api/tipos-tapa/${tipo.id}`, {
+                                                  method: "PUT",
+                                                  headers: { "Content-Type": "application/json" },
+                                                  body: JSON.stringify({
+                                                    codigo: tipo.codigo,
+                                                    nombre: tipo.nombre,
+                                                    activo: newActivo
+                                                  }),
+                                                });
+                                                if (!res.ok) {
+                                                  const err = await res.json();
+                                                  throw new Error(err.error || "Error al actualizar");
+                                                }
+                                                showToast(newActivo === 1 ? "Tapa habilitada" : "Tapa inhabilitada", "success");
+                                                fetchTiposTapa();
+                                                fetchProducts();
+                                              } catch (err: any) {
+                                                showToast(err.message, "error");
+                                              }
+                                            }}
+                                            className="relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                                            style={{ backgroundColor: (tipo.activo ?? 1) === 1 ? '#3b82f6' : '#cbd5e1' }}
+                                          >
+                                            <span
+                                              className="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                                              style={{ transform: (tipo.activo ?? 1) === 1 ? 'translateX(20px)' : 'translateX(0px)' }}
+                                            />
+                                          </button>
+                                        </td>
+                                        <td className="px-5 py-3.5 whitespace-nowrap text-center text-sm">
+                                          {isEditing ? (
+                                            <>
+                                              <button
+                                                onClick={async () => {
+                                                  const nombre = editingTapaName.trim().toUpperCase();
+                                                  if (!nombre) {
+                                                    showToast("El nombre de la tapa es obligatorio", "error");
+                                                    return;
+                                                  }
+                                                  try {
+                                                    const res = await fetch(`/api/tipos-tapa/${tipo.id}`, {
+                                                      method: "PUT",
+                                                      headers: { "Content-Type": "application/json" },
+                                                      body: JSON.stringify({
+                                                        codigo: editingTapaCode,
+                                                        nombre: nombre,
+                                                        activo: tipo.activo
+                                                      }),
+                                                    });
+                                                    if (!res.ok) {
+                                                      const err = await res.json();
+                                                      throw new Error(err.error || "Error al actualizar");
+                                                    }
+                                                    showToast("Tapa actualizada", "success");
+                                                    setEditingTapaId(null);
+                                                    fetchTiposTapa();
+                                                    fetchProducts();
+                                                  } catch (err: any) {
+                                                    showToast(err.message, "error");
+                                                  }
+                                                }}
+                                                className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded transition-colors mr-2 cursor-pointer inline-flex items-center justify-center"
+                                                title="Guardar"
+                                              >
+                                                <Check className="w-4 h-4" />
+                                              </button>
+                                              <button
+                                                onClick={() => setEditingTapaId(null)}
+                                                className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors cursor-pointer inline-flex items-center justify-center"
+                                                title="Cancelar"
+                                              >
+                                                <X className="w-4 h-4" />
+                                              </button>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <button
+                                                onClick={() => {
+                                                  setEditingTapaId(tipo.id);
+                                                  setEditingTapaCode(tipo.codigo || "");
+                                                  setEditingTapaName(tipo.nombre);
+                                                }}
+                                                className="p-1.5 rounded transition-colors mr-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 cursor-pointer inline-flex items-center justify-center"
+                                                title="Editar tapa"
+                                              >
+                                                <Edit className="w-4 h-4" />
+                                              </button>
+                                              <button
+                                                onClick={async () => {
+                                                  if (confirm(`¿Estás seguro de que deseas eliminar el tipo de tapa "${tipo.nombre}"?`)) {
+                                                    try {
+                                                      const res = await fetch(`/api/tipos-tapa/${tipo.id}`, {
+                                                        method: "DELETE",
+                                                      });
+                                                      if (!res.ok) {
+                                                        const err = await res.json();
+                                                        throw new Error(err.error || "Error al eliminar");
+                                                      }
+                                                      showToast("Tapa eliminada", "success");
+                                                      fetchTiposTapa();
+                                                    } catch (err: any) {
+                                                      showToast(err.message, "error");
+                                                    }
+                                                  }
+                                                }}
+                                                className="p-1.5 rounded transition-colors text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer inline-flex items-center justify-center"
+                                                title="Eliminar tapa"
+                                              >
+                                                <Trash2 className="w-4 h-4" />
+                                              </button>
+                                            </>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
+            )}
+            {currentView === "planificacion" && (
+              <PlanificacionManager 
+                products={products}
+                onShowToast={showToast}
+                theme={theme}
+                tiposEmpaque={tiposEmpaque}
+                tiposEnvasePrimario={tiposEnvasePrimario}
+                tiposTapa={tiposTapa}
+              />
             )}
           </div>
         </div>
@@ -1747,6 +3416,9 @@ timeout /t 15
           product={editingProduct}
           onSave={handleSaveProduct}
           onClose={() => setIsFormOpen(false)}
+          tiposEmpaque={tiposEmpaque}
+          tiposEnvasePrimario={tiposEnvasePrimario}
+          tiposTapa={tiposTapa}
         />
       )}
 

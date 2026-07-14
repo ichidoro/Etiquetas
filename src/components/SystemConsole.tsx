@@ -187,13 +187,7 @@ export function SystemConsole() {
             </button>
 
             {/* Actions */}
-            <button
-              onClick={fetchLogs}
-              className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
-              title="Refrescar"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-            </button>
+
             <button
               onClick={exportLogs}
               className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"

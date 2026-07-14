@@ -228,7 +228,7 @@ export function EmpleadosManager({ onShowToast }: EmpleadosManagerProps) {
       )}
 
       {/* ---- Loading state ------------------------------------------------- */}
-      {loading && (
+      {loading && empleados.length === 0 && (
         <div className="flex items-center justify-center py-16">
           <div className="flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
@@ -238,7 +238,7 @@ export function EmpleadosManager({ onShowToast }: EmpleadosManagerProps) {
       )}
 
       {/* ---- Empty state --------------------------------------------------- */}
-      {!loading && !error && filtered.length === 0 && (
+      {!loading && empleados.length === 0 && filtered.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="p-4 bg-slate-100 rounded-full mb-4">
             <Users className="w-10 h-10 text-slate-400" />
@@ -257,8 +257,8 @@ export function EmpleadosManager({ onShowToast }: EmpleadosManagerProps) {
       )}
 
       {/* ---- Table --------------------------------------------------------- */}
-      {!loading && filtered.length > 0 && (
-        <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-sm">
+      {(!loading || empleados.length > 0) && filtered.length > 0 && (
+        <div className={`overflow-x-auto border border-slate-200 rounded-xl shadow-sm ${loading ? 'opacity-65 transition-opacity pointer-events-none' : ''}`}>
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50">
               <tr>

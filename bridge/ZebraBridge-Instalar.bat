@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 > nul
 :: ╔══════════════════════════════════════════════════════════════╗
 :: ║  ZebraBridge Print Server — Instalador y Lanzador           ║
 :: ║                                                              ║
@@ -25,9 +26,12 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-:: ── 2. Check if print-bridge.mjs exists ──────────────────────
+:: ── 2. Descargar la última versión de print-bridge.mjs de la nube ────────────
+echo 🔄 Buscando actualizaciones del agente de impresion en la nube...
+powershell -NoProfile -Command "try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://etiquetas-aguacol-684852789183.us-central1.run.app/api/download-bridge' -OutFile '%BRIDGE_SCRIPT%' -TimeoutSec 15 -ErrorAction Stop; Write-Host '   ✅ Agente de impresion actualizado desde la nube.' } catch { Write-Host '   ⚠️  No se pudo descargar de la nube (usando archivo local si existe).' }"
+
 if not exist "%BRIDGE_SCRIPT%" (
-    echo ❌ No se encontró print-bridge.mjs
+    echo ❌ No se encontro print-bridge.mjs y no se pudo descargar de la nube.
     echo    Debe estar en la misma carpeta que este .bat
     pause
     exit /b 1
@@ -37,19 +41,15 @@ if not exist "%BRIDGE_SCRIPT%" (
 echo Creating silent launcher...
 (
     echo Set WshShell = CreateObject^("WScript.Shell"^)
-    echo WshShell.CurrentDirectory = "%BRIDGE_DIR%"
-    echo WshShell.Run "node ""%BRIDGE_SCRIPT%""", 0, False
+    echo Set fso = CreateObject^("Scripting.FileSystemObject"^)
+    echo scriptDir = fso.GetParentFolderName^(WScript.ScriptFullName^)
+    echo WshShell.CurrentDirectory = scriptDir
+    echo WshShell.Run "node """ ^& scriptDir ^& "\print-bridge.mjs""", 0, False
 ) > "%VBS_LAUNCHER%"
 
 :: ── 4. Create Windows Startup shortcut ───────────────────────
 echo Installing auto-start...
-powershell -NoProfile -Command ^
-  "$ws = New-Object -ComObject WScript.Shell; ^
-   $sc = $ws.CreateShortcut('%STARTUP_LINK%'); ^
-   $sc.TargetPath = '%VBS_LAUNCHER%'; ^
-   $sc.WorkingDirectory = '%BRIDGE_DIR%'; ^
-   $sc.Description = 'ZebraBridge Print Server'; ^
-   $sc.Save()"
+powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $sc = $ws.CreateShortcut('%STARTUP_LINK%'); $sc.TargetPath = '%VBS_LAUNCHER%'; $sc.WorkingDirectory = '%BRIDGE_DIR%'; $sc.Description = 'ZebraBridge Print Server'; $sc.Save()"
 
 :: ── 5. Kill any existing instance ────────────────────────────
 echo Stopping previous instances...
@@ -74,25 +74,7 @@ start "" wscript.exe "%VBS_LAUNCHER%"
 
 :: ── 7. Wait and verify ───────────────────────────────────────
 timeout /t 3 /nobreak >nul
-powershell -NoProfile -Command ^
-  "try { $r = Invoke-WebRequest -Uri 'http://localhost:3000/health' -UseBasicParsing -TimeoutSec 5; ^
-   $j = $r.Content | ConvertFrom-Json; ^
-   Write-Host ''; ^
-   Write-Host '╔══════════════════════════════════════════════════╗'; ^
-   Write-Host '║  ✅ ZebraBridge Print Server ACTIVO               ║'; ^
-   Write-Host '║                                                    ║'; ^
-   Write-Host '║  🌐 Puerto: http://localhost:3000                  ║'; ^
-   Write-Host '║  📌 Auto-inicio: CONFIGURADO                      ║'; ^
-   Write-Host '║  🔒 Modo: Segundo plano (invisible)               ║'; ^
-   Write-Host '║                                                    ║'; ^
-   Write-Host '║  Ya puedes usar la app desde la nube.             ║'; ^
-   Write-Host '║  Esta ventana se cerrará automáticamente.          ║'; ^
-   Write-Host '╚══════════════════════════════════════════════════╝'; ^
-   Write-Host ''; ^
-  } catch { ^
-   Write-Host '❌ Error: El servidor no respondió.'; ^
-   Write-Host '   Revisa que el puerto 3000 no esté en uso.'; ^
-  }"
+powershell -NoProfile -Command "try { $r = Invoke-WebRequest -Uri 'http://localhost:3000/health' -UseBasicParsing -TimeoutSec 5; $j = $r.Content | ConvertFrom-Json; Write-Host ''; Write-Host '╔══════════════════════════════════════════════════╗'; Write-Host '║  ✅ ZebraBridge Print Server ACTIVO               ║'; Write-Host '║                                                    ║'; Write-Host '║  🌐 Puerto: http://localhost:3000                  ║'; Write-Host '║  📌 Auto-inicio: CONFIGURADO                      ║'; Write-Host '║  🔒 Modo: Segundo plano (invisible)               ║'; Write-Host '║                                                    ║'; Write-Host '║  Ya puedes usar la app desde la nube.             ║'; Write-Host '║  Esta ventana se cerrará automáticamente.          ║'; Write-Host '╚══════════════════════════════════════════════════╝'; Write-Host ''; } catch { Write-Host '❌ Error: El servidor no respondió.'; Write-Host '   Revisa que el puerto 3000 no esté en uso.'; }"
 
 :: Auto-close after 8 seconds
 timeout /t 8 /nobreak >nul
