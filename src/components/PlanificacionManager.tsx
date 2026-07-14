@@ -78,6 +78,8 @@ export function PlanificacionManager({ products, onShowToast, theme, tiposEmpaqu
   const [selectedBrand, setSelectedBrand] = useState('');
   const [dashPlans, setDashPlans] = useState<Planificacion[]>([]);
   const [dashLoading, setDashLoading] = useState(false);
+  const [historyStats, setHistoryStats] = useState<{ globalAverageLitersPerDay: number; absoluteRecordLitersSingleDay: number } | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
   const lastLoadedDatesRef = React.useRef({ start: '', end: '' });
 
   // Column resizing states and event handlers
@@ -957,6 +959,17 @@ export function PlanificacionManager({ products, onShowToast, theme, tiposEmpaqu
       const data = await res.json();
       setDashPlans(data);
       lastLoadedDatesRef.current = { start: dashStartDate, end: dashEndDate };
+
+      setStatsLoading(true);
+      fetch('/api/dashboard/history-stats')
+        .then(async r => {
+          if (r.ok) {
+            const stats = await r.json();
+            setHistoryStats(stats);
+          }
+        })
+        .catch(err => console.error("Error fetching historical stats:", err))
+        .finally(() => setStatsLoading(false));
     } catch (e: any) {
       console.error(e);
       onShowToast?.("Error al cargar datos del dashboard", "error");
@@ -2276,6 +2289,8 @@ export function PlanificacionManager({ products, onShowToast, theme, tiposEmpaqu
           hoveredResizeCol={hoveredResizeCol}
           setHoveredResizeCol={setHoveredResizeCol}
           handleDashResizeStart={handleDashResizeStart}
+          historyStats={historyStats}
+          statsLoading={statsLoading}
         />
       )}
 
@@ -2686,6 +2701,8 @@ interface PlanificacionDashboardProps {
   hoveredResizeCol: string | null;
   setHoveredResizeCol: (c: string | null) => void;
   handleDashResizeStart: (e: React.MouseEvent, colKey: string) => void;
+  historyStats: { globalAverageLitersPerDay: number; absoluteRecordLitersSingleDay: number } | null;
+  statsLoading: boolean;
 }
 
 export function PlanificacionDashboard({
@@ -2713,7 +2730,9 @@ export function PlanificacionDashboard({
   dashColWidths,
   hoveredResizeCol,
   setHoveredResizeCol,
-  handleDashResizeStart
+  handleDashResizeStart,
+  historyStats,
+  statsLoading
 }: PlanificacionDashboardProps) {
   const [selectedBusinessLine, setSelectedBusinessLine] = useState('');
   const [selectedFamily, setSelectedFamily] = useState('');
@@ -3500,19 +3519,6 @@ export function PlanificacionDashboard({
                           <div className="text-2xl font-bold font-mono tracking-tight text-slate-800 dark:text-slate-100">
                             {totalPallets.toFixed(1)}
                           </div>
-                          {(() => {
-                            const change = getPctChange(totalPallets, prevTotalPallets);
-                            const diff = totalPallets - prevTotalPallets;
-                            const isPos = change >= 0;
-                            return (
-                              <div className="flex flex-col">
-                                <span className={`inline-flex items-center text-[10px] font-bold ${isPos ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                  {isPos ? '↑' : '↓'} {Math.abs(change).toFixed(1)}% vs. período ant.
-                                </span>
-                                <span className="text-[9px] text-slate-400 font-medium">({diff >= 0 ? '+' : ''}{diff.toFixed(1)} pallets)</span>
-                              </div>
-                            );
-                          })()}
                         </div>
                         <div className={`p-3 rounded-lg ${
                           theme === 'light' 
@@ -3534,19 +3540,6 @@ export function PlanificacionDashboard({
                           <div className="text-2xl font-bold font-mono tracking-tight text-slate-800 dark:text-slate-100">
                             {totalLiters.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} L
                           </div>
-                          {(() => {
-                            const change = getPctChange(totalLiters, prevTotalLiters);
-                            const diff = totalLiters - prevTotalLiters;
-                            const isPos = change >= 0;
-                            return (
-                              <div className="flex flex-col">
-                                <span className={`inline-flex items-center text-[10px] font-bold ${isPos ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                  {isPos ? '↑' : '↓'} {Math.abs(change).toFixed(1)}% vs. período ant.
-                                </span>
-                                <span className="text-[9px] text-slate-400 font-medium">({diff >= 0 ? '+' : ''}{diff.toLocaleString(undefined, { maximumFractionDigits: 0 })} L)</span>
-                              </div>
-                            );
-                          })()}
                         </div>
                         <div className={`p-3 rounded-lg ${
                           theme === 'light' 
@@ -3568,19 +3561,6 @@ export function PlanificacionDashboard({
                           <div className="text-2xl font-bold font-mono tracking-tight text-slate-800 dark:text-slate-100">
                             {totalEnvases.toLocaleString()}
                           </div>
-                          {(() => {
-                            const change = getPctChange(totalEnvases, prevTotalEnvases);
-                            const diff = totalEnvases - prevTotalEnvases;
-                            const isPos = change >= 0;
-                            return (
-                              <div className="flex flex-col">
-                                <span className={`inline-flex items-center text-[10px] font-bold ${isPos ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                  {isPos ? '↑' : '↓'} {Math.abs(change).toFixed(1)}% vs. período ant.
-                                </span>
-                                <span className="text-[9px] text-slate-400 font-medium">({diff >= 0 ? '+' : ''}{diff.toLocaleString()} uds)</span>
-                              </div>
-                            );
-                          })()}
                         </div>
                         <div className={`p-3 rounded-lg ${
                           theme === 'light' 
@@ -3602,18 +3582,6 @@ export function PlanificacionDashboard({
                           <div className="text-2xl font-bold font-mono tracking-tight text-slate-800 dark:text-slate-100">
                             {complianceRate.toFixed(0)}%
                           </div>
-                          {(() => {
-                            const change = complianceRate - prevComplianceRate;
-                            const isPos = change >= 0;
-                            return (
-                              <div className="flex flex-col">
-                                <span className={`inline-flex items-center text-[10px] font-bold ${isPos ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                  {isPos ? '↑' : '↓'} {Math.abs(change).toFixed(1)}% vs. período ant.
-                                </span>
-                                <span className="text-[9px] text-slate-405 font-medium">(Tasa anterior: {prevComplianceRate.toFixed(0)}%)</span>
-                              </div>
-                            );
-                          })()}
                         </div>
                         <div className={`p-3 rounded-lg ${
                           theme === 'light' 
@@ -3629,35 +3597,44 @@ export function PlanificacionDashboard({
                   </div>
                 </div>
 
-                {/* Bloque 2: Carga Operativa Diaria (Visión Micro) */}
+                 {/* Bloque 2: Inteligencia Logística (BI) */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
                     <span className="text-[10px] uppercase font-black tracking-widest text-slate-400 dark:text-slate-500">
-                      Carga Operativa Diaria
+                      Inteligencia Logística (BI)
                     </span>
-                    <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                      Visión Micro ({uniqueCurrentDaysCount} {uniqueCurrentDaysCount === 1 ? 'día' : 'días'} con actividad real)
+                    <span className="text-[8px] font-extrabold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                      Métricas de Planta ({uniqueCurrentDaysCount} {uniqueCurrentDaysCount === 1 ? 'día' : 'días'} activos)
                     </span>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    {/* KPI 2.1: Pallets por Día */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* KPI 2.1: Radar de Inercia */}
                     <div className={`${cardBg} rounded-xl border p-5 flex flex-col justify-between`}>
                       <div className="flex items-center justify-between">
                         <div className="space-y-1">
-                          <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Pallets por Día</span>
+                          <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Radar de Inercia</span>
                           <div className="text-2xl font-bold font-mono tracking-tight text-slate-800 dark:text-slate-100">
-                            {currentDailyPallets.toFixed(1)}
+                            {Math.round(avgCurrentSpeed).toLocaleString('es-ES')} L/d
                           </div>
                           {(() => {
-                            const change = getPctChange(currentDailyPallets, prevDailyPallets);
-                            const diff = currentDailyPallets - prevDailyPallets;
-                            const isPos = change >= 0;
+                            if (avgPrevSpeed === 0) {
+                              return (
+                                <div className="flex flex-col">
+                                  <span className="text-[10px] font-bold text-slate-400">
+                                    Sin historial de inercia
+                                  </span>
+                                </div>
+                              );
+                            }
+                            const diff = avgCurrentSpeed - avgPrevSpeed;
+                            const pct = ((diff / avgPrevSpeed) * 100);
+                            const isPos = diff >= 0;
                             return (
                               <div className="flex flex-col">
                                 <span className={`inline-flex items-center text-[10px] font-bold ${isPos ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                  {isPos ? '↑' : '↓'} {Math.abs(change).toFixed(1)}% vs. período ant.
+                                  {isPos ? '↑ Acelerando' : '↓ Desacelerando'} ({isPos ? '+' : ''}{Math.round(diff).toLocaleString('es-ES')} L/día)
                                 </span>
-                                <span className="text-[9px] text-slate-400 font-medium">({diff >= 0 ? '+' : ''}{diff.toFixed(1)} pallets/día)</span>
+                                <span className="text-[9px] text-slate-400 font-medium">({isPos ? '+' : ''}{pct.toFixed(1)}% vs. ciclo anterior)</span>
                               </div>
                             );
                           })()}
@@ -3669,29 +3646,48 @@ export function PlanificacionDashboard({
                               ? 'bg-blue-500/10 text-blue-300 border border-blue-500/25' 
                               : 'bg-blue-950/40 text-blue-400 border border-blue-900/50'
                         }`}>
-                          <Layers className="w-5 h-5" />
+                          <TrendingUp className="w-5 h-5" />
                         </div>
                       </div>
                     </div>
 
-                    {/* KPI 2.2: Litros por Día */}
+                    {/* KPI 2.2: Índice de Estacionalidad */}
                     <div className={`${cardBg} rounded-xl border p-5 flex flex-col justify-between`}>
                       <div className="flex items-center justify-between">
                         <div className="space-y-1">
-                          <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Litros por Día</span>
+                          <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Índice Estacionalidad</span>
                           <div className="text-2xl font-bold font-mono tracking-tight text-slate-800 dark:text-slate-100">
-                            {Math.round(currentDailyLiters).toLocaleString('es-ES')} L
+                            {statsLoading ? (
+                              <span className="text-sm font-sans font-medium text-slate-400">Cargando...</span>
+                            ) : !historyStats ? (
+                              <span className="text-sm font-sans font-medium text-slate-400">Sin historial</span>
+                            ) : (() => {
+                              const globalAvg = historyStats.globalAverageLitersPerDay;
+                              const diff = avgCurrentSpeed - globalAvg;
+                              const pct = globalAvg > 0 ? (diff / globalAvg) * 100 : 0;
+                              return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
+                            })()}
                           </div>
                           {(() => {
-                            const change = getPctChange(currentDailyLiters, prevDailyLiters);
-                            const diff = currentDailyLiters - prevDailyLiters;
-                            const isPos = change >= 0;
+                            if (statsLoading || !historyStats || historyStats.globalAverageLitersPerDay === 0) {
+                              return (
+                                <div className="flex flex-col">
+                                  <span className="text-[10px] font-bold text-slate-450">
+                                    Calculando media histórica global...
+                                  </span>
+                                </div>
+                              );
+                            }
+                            const globalAvg = historyStats.globalAverageLitersPerDay;
+                            const diff = avgCurrentSpeed - globalAvg;
+                            const pct = ((avgCurrentSpeed - globalAvg) / globalAvg) * 100;
+                            const isPos = pct >= 0;
                             return (
                               <div className="flex flex-col">
                                 <span className={`inline-flex items-center text-[10px] font-bold ${isPos ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                  {isPos ? '↑' : '↓'} {Math.abs(change).toFixed(1)}% vs. período ant.
+                                  {isPos ? '↑ Sobre la media' : '↓ Bajo la media'}
                                 </span>
-                                <span className="text-[9px] text-slate-400 font-medium">({diff >= 0 ? '+' : ''}{Math.round(diff).toLocaleString('es-ES')} L/día)</span>
+                                <span className="text-[9px] text-slate-400 font-medium">Media: {Math.round(globalAvg).toLocaleString('es-ES')} L/día</span>
                               </div>
                             );
                           })()}
@@ -3703,74 +3699,58 @@ export function PlanificacionDashboard({
                               ? 'bg-purple-500/10 text-purple-355 border border-purple-500/25' 
                               : 'bg-purple-950/40 text-purple-400 border border-purple-900/50'
                         }`}>
-                          <Droplet className="w-5 h-5" />
+                          <BarChart2 className="w-5 h-5" />
                         </div>
                       </div>
                     </div>
 
-                    {/* KPI 2.3: Unidades por Día */}
+                    {/* KPI 2.3: Termómetro de Saturación */}
                     <div className={`${cardBg} rounded-xl border p-5 flex flex-col justify-between`}>
                       <div className="flex items-center justify-between">
                         <div className="space-y-1">
-                          <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Unidades por Día</span>
+                          <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Termómetro Saturación</span>
                           <div className="text-2xl font-bold font-mono tracking-tight text-slate-800 dark:text-slate-100">
-                            {Math.round(currentDailyUnits).toLocaleString('es-ES')}
+                            {statsLoading ? (
+                              <span className="text-sm font-sans font-medium text-slate-400">Cargando...</span>
+                            ) : !historyStats || historyStats.absoluteRecordLitersSingleDay === 0 ? (
+                              "0.0%"
+                            ) : (() => {
+                              const record = historyStats.absoluteRecordLitersSingleDay;
+                              const stress = (avgCurrentSpeed / record) * 100;
+                              return `${stress.toFixed(1)}%`;
+                            })()}
                           </div>
                           {(() => {
-                            const change = getPctChange(currentDailyUnits, prevDailyUnits);
-                            const diff = currentDailyUnits - prevDailyUnits;
-                            const isPos = change >= 0;
+                            if (statsLoading || !historyStats || historyStats.absoluteRecordLitersSingleDay === 0) {
+                              return (
+                                <div className="flex flex-col">
+                                  <span className="text-[10px] font-bold text-slate-450">
+                                    Buscando récord histórico...
+                                  </span>
+                                </div>
+                              );
+                            }
+                            const record = historyStats.absoluteRecordLitersSingleDay;
+                            const stress = (avgCurrentSpeed / record) * 100;
+                            const isAlert = stress >= 90;
                             return (
                               <div className="flex flex-col">
-                                <span className={`inline-flex items-center text-[10px] font-bold ${isPos ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                  {isPos ? '↑' : '↓'} {Math.abs(change).toFixed(1)}% vs. período ant.
+                                <span className={`inline-flex items-center text-[10px] font-bold ${isAlert ? 'text-rose-500 animate-pulse' : 'text-emerald-500'}`}>
+                                  {isAlert ? '⚠️ Alerta: Producción al límite histórico' : 'Operación Estable'}
                                 </span>
-                                <span className="text-[9px] text-slate-400 font-medium">({diff >= 0 ? '+' : ''}{Math.round(diff).toLocaleString('es-ES')} uds/día)</span>
+                                <span className="text-[9px] text-slate-400 font-medium">Récord: {Math.round(record).toLocaleString('es-ES')} L/día</span>
                               </div>
                             );
                           })()}
                         </div>
                         <div className={`p-3 rounded-lg ${
                           theme === 'light' 
-                            ? 'bg-emerald-50 text-emerald-600' 
+                            ? 'bg-rose-50 text-rose-600' 
                             : theme === 'glass' 
-                              ? 'bg-emerald-500/10 text-emerald-355 border border-emerald-500/25' 
-                              : 'bg-emerald-950/40 text-emerald-400 border border-emerald-900/50'
+                              ? 'bg-rose-500/10 text-rose-300 border border-rose-500/25' 
+                              : 'bg-rose-950/40 text-rose-400 border border-rose-900/50'
                         }`}>
-                          <Boxes className="w-5 h-5" />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* KPI 2.4: Tasa de Cumplimiento Diaria */}
-                    <div className={`${cardBg} rounded-xl border p-5 flex flex-col justify-between`}>
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-1">
-                          <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Tasa Cumplimiento Diaria</span>
-                          <div className="text-2xl font-bold font-mono tracking-tight text-slate-800 dark:text-slate-100">
-                            {complianceRate.toFixed(0)}%
-                          </div>
-                          {(() => {
-                            const change = complianceRate - prevComplianceRate;
-                            const isPos = change >= 0;
-                            return (
-                              <div className="flex flex-col">
-                                <span className={`inline-flex items-center text-[10px] font-bold ${isPos ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                  {isPos ? '↑' : '↓'} {Math.abs(change).toFixed(1)}% vs. período ant.
-                                </span>
-                                <span className="text-[9px] text-slate-405 font-medium">(Tasa anterior: {prevComplianceRate.toFixed(0)}%)</span>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                        <div className={`p-3 rounded-lg ${
-                          theme === 'light' 
-                            ? 'bg-emerald-55 text-emerald-600' 
-                            : theme === 'glass' 
-                              ? 'bg-emerald-500/10 text-emerald-355 border border-emerald-500/25' 
-                              : 'bg-emerald-950/40 text-emerald-400 border border-emerald-900/50'
-                        }`}>
-                          <CheckCircle className="w-5 h-5" />
+                          <AlertCircle className="w-5 h-5" />
                         </div>
                       </div>
                     </div>

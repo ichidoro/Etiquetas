@@ -2166,6 +2166,73 @@ app.post('/api/config', async (req, res) => {
   }
 });
 
+function parseFormatoToLiters(formatoStr: string | null | undefined): number {
+  if (!formatoStr) return 0;
+  const clean = formatoStr.trim().toLowerCase();
+  if (!clean) return 0;
+  
+  const mlMatch = clean.match(/^([\d.,]+)\s*(cc|ml|mls)$/);
+  if (mlMatch) {
+    const val = parseFloat(mlMatch[1].replace(',', '.'));
+    return isNaN(val) ? 0 : val / 1000;
+  }
+  
+  const lMatch = clean.match(/^([\d.,]+)\s*(l|lt|lts|litro|litros)$/);
+  if (lMatch) {
+    const val = parseFloat(lMatch[1].replace(',', '.'));
+    return isNaN(val) ? 0 : val;
+  }
+  
+  const val = parseFloat(clean.replace(',', '.'));
+  return isNaN(val) ? 0 : val;
+}
+
+app.get('/api/dashboard/history-stats', async (req, res) => {
+  try {
+    const query = `
+      SELECT p.fecha, p.cantidad_programada, prod.formato as product_formato
+      FROM planificaciones p
+      LEFT JOIN products prod ON p.product_sku = prod.sku
+    `;
+    const result = await db.execute(query);
+    
+    const dailyLiters = new Map<string, number>();
+    
+    for (const row of result.rows) {
+      const fecha = row.fecha as string;
+      const cantidad = Number(row.cantidad_programada || 0);
+      const formato = row.product_formato as string;
+      
+      const litersPerEnvase = parseFormatoToLiters(formato);
+      const totalLitersForRecord = cantidad * litersPerEnvase;
+      
+      const currentDayLiters = dailyLiters.get(fecha) || 0;
+      dailyLiters.set(fecha, currentDayLiters + totalLitersForRecord);
+    }
+    
+    let totalLitersSum = 0;
+    let absoluteRecordLitersSingleDay = 0;
+    
+    for (const dayLiters of dailyLiters.values()) {
+      totalLitersSum += dayLiters;
+      if (dayLiters > absoluteRecordLitersSingleDay) {
+        absoluteRecordLitersSingleDay = dayLiters;
+      }
+    }
+    
+    const uniqueDatesCount = dailyLiters.size;
+    const globalAverageLitersPerDay = uniqueDatesCount > 0 ? (totalLitersSum / uniqueDatesCount) : 0;
+    
+    res.json({
+      globalAverageLitersPerDay,
+      absoluteRecordLitersSingleDay
+    });
+  } catch (error: any) {
+    console.error("Error calculating dashboard history stats:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/whatsapp/status', (req, res) => {
   res.json({
     status: connectionStatus,
